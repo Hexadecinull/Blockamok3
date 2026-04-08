@@ -1,16 +1,27 @@
-OBJ_DIR = ./build_linux
-EXE = blockamokremix
+# Blockamok Remix – Linux build
+# Usage: make -f Makefiles/Makefile_linux            (default)
+#        make -f Makefiles/Makefile_linux LOW_END=1  (low-end mode)
 
-SRC_DIR = src
-SRCS = $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/**/*.c)
-OBJS = $(patsubst %.c, $(OBJ_DIR)/%.o, $(SRCS))
+OBJ_DIR := ./build_linux
+EXE     := blockamokremix
 
-CC ?= gcc
-SDLCONFIG ?= sdl2-config
-CFLAGS ?= -Os -Wall -Wextra -DLINUX -DPC
+SRC_DIR := src
+SRCS    := $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/**/*.c)
+OBJS    := $(patsubst %.c, $(OBJ_DIR)/%.o, $(SRCS))
+
+CC         ?= gcc
+SDLCONFIG  ?= sdl2-config
+
+ifeq ($(LOW_END),1)
+OPT_FLAGS  := -Os -march=i686 -mtune=generic -DLOW_SPEC_BG -DFORCE_DRAW_OVERLAY
+else
+OPT_FLAGS  := -O2 -march=x86-64 -mtune=generic
+endif
+
+CFLAGS  ?= $(OPT_FLAGS) -Wall -Wextra -DLINUX -DPC
 LDFLAGS ?= -lSDL2_ttf -lSDL2_mixer -lmikmod
 
-CFLAGS += `$(SDLCONFIG) --cflags`
+CFLAGS  += `$(SDLCONFIG) --cflags`
 LDFLAGS += `$(SDLCONFIG) --libs` -lm
 
 .PHONY: all clean

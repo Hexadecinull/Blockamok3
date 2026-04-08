@@ -1,0 +1,73 @@
+name: CI – Linux
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'src/**'
+      - 'Makefiles/Makefile_linux'
+      - '.github/workflows/ci_linux.yml'
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  build:
+    name: Build Linux (x86-64)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            gcc make \
+            libsdl2-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+            libmikmod-dev
+
+      - name: Build (normal)
+        run: make -f Makefiles/Makefile_linux -j$(nproc)
+
+      - name: Verify executable exists
+        run: test -f blockamokremix
+
+      - name: Check for undefined symbols
+        run: nm blockamokremix | grep -v ' U ' || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockamokremix-linux-x64
+          path: blockamokremix
+          retention-days: 14
+
+  build-lowend:
+    name: Build Linux (low-end / i686)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            gcc-multilib make \
+            libsdl2-dev:i386 libsdl2-mixer-dev:i386 libsdl2-ttf-dev:i386 \
+            libmikmod-dev:i386
+
+      - name: Build (low-end)
+        run: make -f Makefiles/Makefile_linux LOW_END=1 CC="gcc -m32" -j$(nproc)
+
+      - name: Verify executable exists
+        run: test -f blockamokremix
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockamokremix-linux-i686-lowend
+          path: blockamokremix
+          retention-days: 14

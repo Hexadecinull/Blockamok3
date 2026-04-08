@@ -1,0 +1,54 @@
+name: CI – PS Vita
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'src/**'
+      - 'Makefiles/make_vita.sh'
+      - 'release-resources/template_vita.xml'
+      - '.github/workflows/ci_vita.yml'
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  build:
+    name: Build PS Vita (vitasdk)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install vitasdk
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends cmake git curl python3 ninja-build
+          git clone https://github.com/vitasdk/vdpm /tmp/vdpm
+          cd /tmp/vdpm
+          ./bootstrap-vitasdk.sh
+          echo "$VITASDK/bin" >> $GITHUB_PATH
+        env:
+          VITASDK: /usr/local/vitasdk
+
+      - name: Install SDL2 for Vita
+        run: |
+          export VITASDK=/usr/local/vitasdk
+          export PATH=$VITASDK/bin:$PATH
+          /tmp/vdpm/vdpm SDL2 SDL2_mixer SDL2_ttf
+
+      - name: Build VPK
+        run: |
+          export VITASDK=/usr/local/vitasdk
+          export PATH=$VITASDK/bin:$PATH
+          bash Makefiles/make_vita.sh
+
+      - name: Verify VPK exists
+        run: ls -lh *.vpk 2>/dev/null || ls -lh *.velf *.self
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockamokremix-vita
+          path: |
+            *.vpk
+          retention-days: 14

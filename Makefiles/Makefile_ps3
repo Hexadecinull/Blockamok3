@@ -1,0 +1,47 @@
+# Blockamok Remix – PS3 (PSL1GHT) build
+# Prerequisites: ps3toolchain / PSL1GHT SDK, ppu-gcc on PATH
+# Usage: make -f Makefiles/Makefile_ps3
+
+TITLE      := BlockamokRemix
+SRC_DIR    := src
+SRCS       := $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/**/*.c)
+
+PS3DEV     ?= /usr/local/ps3dev
+PSL1GHT    ?= $(PS3DEV)/psl1ght
+OBJ_DIR    := build_ps3
+
+CC         := ppu-gcc
+LD         := ppu-gcc
+OBJS       := $(SRCS:%.c=$(OBJ_DIR)/%.o)
+TARGET_ELF := $(TITLE).elf
+TARGET_SELF := $(TITLE).self
+
+CFLAGS := \
+    -O2 -Wall \
+    -DPS3 -DPC \
+    -I$(PSL1GHT)/ppu/include \
+    -I$(PS3DEV)/ppu/include \
+    -I$(PS3DEV)/ppu/include/SDL2
+
+LDFLAGS := \
+    -L$(PSL1GHT)/ppu/lib \
+    -L$(PS3DEV)/ppu/lib \
+    -lSDL2 -lSDL2_mixer -lSDL2_ttf \
+    -lpsl1ght -lm -llv2
+
+.PHONY: all clean
+
+all: $(TARGET_SELF)
+
+$(TARGET_SELF): $(TARGET_ELF)
+	make_self_npdrm $< $@ UP0001-$(TITLE)_00-0000000000000000
+
+$(TARGET_ELF): $(OBJS)
+	$(LD) $(OBJS) $(LDFLAGS) -o $@
+
+$(OBJ_DIR)/%.o: %.c
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -rf $(OBJ_DIR) $(TARGET_ELF) $(TARGET_SELF)

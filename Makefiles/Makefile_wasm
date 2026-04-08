@@ -1,0 +1,61 @@
+# Blockamok Remix – Emscripten (WebAssembly) build
+# Prerequisites: Emscripten SDK activated (emcc on PATH)
+# Usage: make -f Makefiles/Makefile_wasm
+#
+# Output: web/index.html  web/blockamok.js  web/blockamok.wasm  web/blockamok.data
+
+OBJ_DIR  := build_wasm
+WEB_DIR  := web
+TARGET   := $(WEB_DIR)/index.html
+
+SRC_DIR  := src
+SRCS     := $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/**/*.c)
+OBJS     := $(SRCS:%.c=$(OBJ_DIR)/%.o)
+
+CC       := emcc
+
+# ── Flags ────────────────────────────────────────────────────────────────────
+# -O2            Solid optimisation without huge compile times
+# -DPC           Re-uses PC code paths (keyboard input, resizable window, etc.)
+# --use-port     Pull in SDL2 subsystems from Emscripten's port collection
+# -sASYNCIFY     Required so SDL_Delay / Mix audio callbacks work correctly
+# -sFULL_ES2     Ensure WebGL 1.0 / GLES2 compatibility
+# --preload-file Bundles the font file into the .data package at build time
+CFLAGS := \
+    -O2 -Wall \
+    -DPC -D__EMSCRIPTEN__ \
+    --use-port=sdl2 \
+    --use-port=sdl2_mixer \
+    --use-port=sdl2_ttf \
+    -sASYNCIFY=1 \
+    -sFULL_ES2=1
+
+LDFLAGS := \
+    --use-port=sdl2 \
+    --use-port=sdl2_mixer \
+    --use-port=sdl2_ttf \
+    -sASYNCIFY=1 \
+    -sFULL_ES2=1 \
+    -sALLOW_MEMORY_GROWTH=1 \
+    -sINITIAL_MEMORY=67108864 \
+    -sEXIT_RUNTIME=0 \
+    --shell-file Makefiles/shell_wasm.html \
+    --preload-file Mono.ttf \
+    -o $(TARGET)
+
+.PHONY: all clean web_dir
+
+all: web_dir $(TARGET)
+
+web_dir:
+	mkdir -p $(WEB_DIR) $(OBJ_DIR)/$(SRC_DIR)/audio $(OBJ_DIR)/$(SRC_DIR)/fonts
+
+$(TARGET): $(OBJS)
+	$(CC) $(OBJS) $(LDFLAGS)
+
+$(OBJ_DIR)/%.o: %.c
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -rf $(OBJ_DIR) $(WEB_DIR)

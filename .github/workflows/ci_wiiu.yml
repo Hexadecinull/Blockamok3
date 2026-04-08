@@ -1,0 +1,40 @@
+name: CI – Wii U
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'src/**'
+      - 'CMakeLists.txt'
+      - 'Makefiles/make_wii_u.sh'
+      - '.github/workflows/ci_wiiu.yml'
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  build:
+    name: Build Wii U (devkitPro + WUT)
+    runs-on: ubuntu-24.04
+    container:
+      image: devkitpro/wut:latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install WiiU SDL2
+        run: dkp-pacman -Sy --noconfirm wiiu-sdl2 wiiu-sdl2_mixer wiiu-sdl2_ttf
+
+      - name: Build with CMake
+        run: |
+          mkdir -p build_wiiu && cd build_wiiu
+          $WUT_CMAKE_FLAGS cmake .. -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/WiiU.cmake
+          make -j$(nproc)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockamokremix-wiiu
+          path: |
+            build_wiiu/*.rpx
+            build_wiiu/*.wuhb
+          retention-days: 14

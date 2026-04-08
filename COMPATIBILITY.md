@@ -52,3 +52,23 @@ This Markdown is made to list all platforms supported by Blockamok Remix² as we
 | Windows (95 - Vista) | Coming Soon | None |
 | Xbox (original) | Coming Soon | None |
 | Xbox 360 | Coming Soon | None |
+
+## Xbox 360
+- **Toolchain:** libxenon (powerpc64-xenon-elf-gcc)
+- **Makefile:** `Makefiles/Makefile_xbox360`
+- **Define:** `-DXBOX360`
+- **Input:** libxenon USB HID (`input/input.h`)
+- **Notes:** `cubeBoundsBase = 9.0` (~60 FPS retail). Build produces a `.xex` file ready for RGH/JTAG consoles.
+
+## PS3
+- **Toolchain:** ps3toolchain / PSL1GHT (ppu-gcc)
+- **Makefile:** `Makefiles/Makefile_ps3`
+- **Define:** `-DPS3`
+- **Input:** PSL1GHT `ioPad` API (`io/pad.h`)
+- **Notes:** `cubeBoundsBase = 8.5` (~55-60 FPS). Build produces a `.self` via `make_self_npdrm`. Requires a CFW/HEN PS3.
+
+## Web (Emscripten / WebAssembly)
+- **Toolchain:** Emscripten SDK 3.1.59+
+- **Makefile:** `make -f Makefiles/Makefile_wasm`
+- **Define:** `-D__EMSCRIPTEN__`
+- **Notes:** Uses `emscripten_set_main_loop()` for browser-friendly frame scheduling. All SDL2 subsystems pulled in via Emscripten ports. Outputs to `web/`. Keyboard + gamepad supported. Automatically deployed to GitHub Pages on push to `main`.

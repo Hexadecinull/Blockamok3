@@ -1,0 +1,46 @@
+name: CI – PSP
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'src/**'
+      - 'Makefiles/Makefile_psp'
+      - '.github/workflows/ci_psp.yml'
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  build:
+    name: Build PSP (pspdev)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pspdev toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends curl git cmake
+          curl -L https://github.com/pspdev/pspdev/releases/latest/download/pspdev-ubuntu-latest-x86_64.tar.gz | \
+            sudo tar -xz -C /usr/local
+
+      - name: Add pspdev to PATH
+        run: echo "/usr/local/pspdev/bin" >> $GITHUB_PATH
+
+      - name: Install PSP SDL2 ports
+        run: |
+          psp-pacman -Sy --noconfirm psp-sdl2 psp-sdl2_mixer psp-sdl2_ttf || true
+
+      - name: Build
+        run: make -f Makefiles/Makefile_psp -j$(nproc)
+
+      - name: Verify EBOOT.PBP exists
+        run: test -f EBOOT.PBP || ls -lh *.elf
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockamokremix-psp
+          path: EBOOT.PBP
+          retention-days: 14

@@ -8,6 +8,9 @@
 #if defined(THREEDS)
 #include <3ds.h>
 #endif
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#endif
 
 #include "./config.h"
 #include "./draw.h"
@@ -30,7 +33,7 @@ Uint32 invinceStart = 0;
 Uint32 deltaTime = 0;
 Uint32 credits_startTime = 0;
 
-Cube cubes[1620]; // this can be lowered depending on max cube bounds (but debug mode allows up to 13.1 everywhere)
+Cube cubes[1620];
 
 float scoreVal;
 #define DEFAULT_HIGH_SCORE 1000
@@ -56,43 +59,30 @@ bool useNew3DSClockSpeed = true;
 #endif
 
 static void handleWindowResize(SDL_Event *event) {
-#if defined(PC) || defined(SWITCH)
+#if defined(PC) || defined(SWITCH) || defined(__EMSCRIPTEN__)
   WINDOW_WIDTH = event->window.data1;
   WINDOW_HEIGHT = event->window.data2;
   bool needsReset = false;
-  if (WINDOW_WIDTH < MIN_WINDOW_SIZE) {
-    WINDOW_WIDTH = MIN_WINDOW_SIZE;
-    needsReset = true;
-  } if (WINDOW_HEIGHT < MIN_WINDOW_SIZE) {
-    WINDOW_HEIGHT = MIN_WINDOW_SIZE;
-    needsReset = true;
-  }
-  if (WINDOW_HEIGHT > WINDOW_WIDTH) {
-    WINDOW_HEIGHT = WINDOW_WIDTH;
-    needsReset = true;
-  }
-  if (needsReset) {
-    SDL_SetWindowSize(window, WINDOW_WIDTH, WINDOW_HEIGHT);
-  }
+  if (WINDOW_WIDTH < MIN_WINDOW_SIZE) { WINDOW_WIDTH = MIN_WINDOW_SIZE; needsReset = true; }
+  if (WINDOW_HEIGHT < MIN_WINDOW_SIZE) { WINDOW_HEIGHT = MIN_WINDOW_SIZE; needsReset = true; }
+  if (WINDOW_HEIGHT > WINDOW_WIDTH) { WINDOW_HEIGHT = WINDOW_WIDTH; needsReset = true; }
+  if (needsReset) SDL_SetWindowSize(window, WINDOW_WIDTH, WINDOW_HEIGHT);
   setScalingVals();
   initStaticMessages(renderer);
-  readSaveData(true); // fixes menu options sometimes being reset to defaults
-  optionCallback_All(); // fixes menu options sometimes being reset to defaults
+  readSaveData(true);
+  optionCallback_All();
   saveBackgroundAsTexture(renderer);
   drawOverlayOnThisFrame = true;
 #endif
 }
 
 void prepareGame() {
-  for (int i = 0; i < CUBE_LIMIT_MAX; i++) {
-    resetCube(cubes, i);
-  }
+  for (int i = 0; i < CUBE_LIMIT_MAX; i++) resetCube(cubes, i);
   gameInit(cubes);
-  // Call once for initial render
   gameFrame(deltaTime, cubes);
 }
 
-static void init() {
+static inline void init() {
 #if defined(PSP)
   window = SDL_CreateWindow("Blockamok Remix", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
   renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
@@ -105,6 +95,9 @@ static void init() {
 #elif defined(ANDROID)
   window = SDL_CreateWindow("Blockamok Remix", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_FULLSCREEN);
   renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+#elif defined(__EMSCRIPTEN__)
+  window = SDL_CreateWindow("Blockamok Remix", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+  renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 #else
   window = SDL_CreateWindow("Blockamok Remix", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
   renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
@@ -114,7 +107,7 @@ static void init() {
   TTF_Init();
   Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048);
   initAudio();
-#if !defined(PC)
+#if !defined(PC) && !defined(__EMSCRIPTEN__)
   SDL_ShowCursor(SDL_DISABLE);
 #endif
 #if defined(THREEDS)
@@ -124,9 +117,7 @@ static void init() {
 }
 
 static inline void gameLoop() {
-  if (gameState != GAME_STATE_GAME_OVER) {
-    gameState = gameFrame(deltaTime, cubes);
-  }
+  if (gameState != GAME_STATE_GAME_OVER) gameState = gameFrame(deltaTime, cubes);
 }
 
 static void handleResetHighScore() {
@@ -135,27 +126,22 @@ static void handleResetHighScore() {
     if (highScoreResetIndex >= HIGH_SCORE_RESET_SEQUENCE_LENGTH) {
       highScoreVal = DEFAULT_HIGH_SCORE;
       writeSaveData();
-			playSFX(SFX_THUNK);
+      playSFX(SFX_THUNK);
       highScoreResetIndex = 0;
       gameState = GAME_STATE_OPTIONS_MAIN;
       openPage(&optionPage_Main, false);
     }
-	} else if (pressedKeys != 0) {
+  } else if (pressedKeys != 0) {
     highScoreResetIndex = 0;
-	}
+  }
 }
 
 static void handleInvincibility() {
   if (keyPressed(invincibilitySequence[invincibilityResetIndex])) {
     invincibilityResetIndex++;
     if (invincibilityResetIndex >= INVINCIBILITY_SEQUENCE_LENGTH) {
-      if (!debugMode) {
-        debugMode = true;
-        playSFX(SFX_DING_A);
-      } else {
-        debugMode = false;
-        playSFX(SFX_DING_B);
-      }
+      if (!debugMode) { debugMode = true; playSFX(SFX_DING_A); }
+      else            { debugMode = false; playSFX(SFX_DING_B); }
       invincibilityResetIndex = 0;
     }
   } else if (pressedKeys != 0) {
@@ -187,7 +173,209 @@ static void drawOverlay() {
   }
 }
 
-int main(int arg, char *argv[]) {
+/* ───────────────────────────────────────────────────────────────────────────
+   mainLoopStep – one complete frame; called by the while loop on all native
+   platforms and by emscripten_set_main_loop on the web build.
+   ─────────────────────────────────────────────────────────────────────────── */
+static void mainLoopStep(void) {
+  last = now;
+  now  = SDL_GetTicks();
+  deltaTime = now - last;
+
+  SDL_Event event;
+  while (SDL_PollEvent(&event)) {
+    switch (event.type) {
+    case SDL_QUIT:
+      quit = true;
+      break;
+    case SDL_CONTROLLERDEVICEADDED:
+    case SDL_CONTROLLERDEVICEREMOVED:
+      controllerInit();
+      break;
+#if defined(PC) || defined(__EMSCRIPTEN__)
+    case SDL_WINDOWEVENT:
+      if (event.window.event == SDL_WINDOWEVENT_RESIZED) handleWindowResize(&event);
+      break;
+#endif
+    default: break;
+    }
+  }
+
+  handlePlayerInput();
+  handleChangeSong();
+  handleFullscreenToggle();
+
+  switch (gameState) {
+    case GAME_STATE_STARTED:
+      drawEssentials(renderer, cubes, cubeAmount);
+      drawTitleScreenText(renderer, false);
+      drawOverlay();
+      fadeInFromBlack(renderer);
+      if (now - startingTick > INIT_FADE_LENGTH) {
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+        gameState = GAME_STATE_TITLE_SCREEN;
+      }
+      break;
+
+    case GAME_STATE_TITLE_SCREEN:
+      if (keyPressed(INPUT_START)) {
+        scoreVal = 0;
+        numLives = OPTION_LIVES + 1;
+        playSFX(SFX_ZOOM);
+        gameStart = SDL_GetTicks();
+        invinceStart = gameStart;
+        gameState = GAME_STATE_PLAYING;
+      } else if (keyPressed(INPUT_SELECT)) {
+        openPage(&optionPage_Main, true);
+        gameState = GAME_STATE_OPTIONS_MAIN;
+      }
+      drawEssentials(renderer, cubes, cubeAmount);
+      drawTitleScreenText(renderer, true);
+      drawOverlay();
+      break;
+
+    case GAME_STATE_OPTIONS_MAIN:
+      if (keyPressed(INPUT_A) || keyPressed(INPUT_START)) {
+        switch (optionPage_Main.index) {
+          case 4: credits_paused = false; credits_startTime = SDL_GetTicks(); break;
+          case 6:
+            forceIndexReset = true;
+            initStaticMessages(renderer);
+            optionCallback_All();
+            playSFX(SFX_THUNK);
+            forceIndexReset = false;
+            break;
+          default: break;
+        }
+      }
+      drawEssentials(renderer, cubes, cubeAmount);
+      handlePage(renderer, window, &optionPage_Main, true);
+      drawOverlay();
+      break;
+
+    case GAME_STATE_OPTIONS_GAME:
+      drawEssentials(renderer, cubes, cubeAmount);
+      handlePage(renderer, window, &optionPage_Game, true);
+      drawOverlay();
+      break;
+
+    case GAME_STATE_OPTIONS_VISUAL:
+      drawEssentials(renderer, cubes, cubeAmount);
+      handlePage(renderer, window, &optionPage_Visual, true);
+      drawOverlay();
+      break;
+
+    case GAME_STATE_OPTIONS_AUDIO:
+      drawEssentials(renderer, cubes, cubeAmount);
+      handlePage(renderer, window, &optionPage_Audio, true);
+      drawOverlay();
+      break;
+
+    case GAME_STATE_INSTRUCTIONS:
+      drawEssentials(renderer, cubes, cubeAmount);
+      handlePage(renderer, window, &optionPage_Empty, false);
+      drawInstructionsText(renderer);
+      drawOverlay();
+      break;
+
+    case GAME_STATE_CREDITS:
+      drawEssentials(renderer, cubes, cubeAmount);
+      handlePage(renderer, window, &optionPage_Empty, false);
+      drawCreditsText(renderer, now);
+      if (keyHeld(INPUT_LEFT) && (keyPressed(INPUT_X) || keyPressed(INPUT_Y))) {
+        showFPS = !showFPS;
+        playSFX(SFX_DING_A);
+      }
+#if defined(THREEDS)
+      if (keyHeld(INPUT_DOWN) && keyHeld(INPUT_RIGHT) && (keyPressed(INPUT_X) || keyPressed(INPUT_Y))) {
+        useNew3DSClockSpeed = !useNew3DSClockSpeed;
+        osSetSpeedupEnable(useNew3DSClockSpeed);
+      }
+#endif
+      drawOverlay();
+      break;
+
+    case GAME_STATE_RESET_HIGH_SCORE:
+      handleResetHighScore();
+      drawEssentials(renderer, cubes, cubeAmount);
+      handlePage(renderer, window, &optionPage_Empty, false);
+      drawResetHighScoreText(renderer);
+      drawOverlay();
+      break;
+
+    case GAME_STATE_QUIT:
+      if (keyPressed(INPUT_A) || keyPressed(INPUT_START)) { quit = true; writeSaveData(); }
+      drawEssentials(renderer, cubes, cubeAmount);
+      handlePage(renderer, window, &optionPage_Empty, false);
+      drawQuitText(renderer);
+      drawOverlay();
+      break;
+
+    case GAME_STATE_PLAYING:
+      gameLoop();
+      if (keyPressed(INPUT_START)) {
+        gameState = GAME_STATE_PAUSED;
+      } else if (keyPressed(INPUT_X) || keyPressed(INPUT_Y)) {
+        showCursor = !showCursor;
+        playSFX(showCursor ? SFX_DING_A : SFX_DING_B);
+      }
+      drawEssentials(renderer, cubes, cubeAmount);
+      drawGameText(renderer);
+      drawCursor(renderer);
+      drawOverlay();
+      break;
+
+    case GAME_STATE_PAUSED:
+      if (debugMode) {
+        if (dirPressedLeft()  && cubeBoundsBase > 2.5f  && invincibilityResetIndex < 6) { cubeBoundsBase -= 0.1f; optionCallback_CubeFrequency(); prepareGame(); }
+        else if (dirPressedRight() && cubeBoundsBase < 13.1f && invincibilityResetIndex < 6) { cubeBoundsBase += 0.1f; optionCallback_CubeFrequency(); prepareGame(); }
+      }
+      handleInvincibility();
+      if (keyPressed(INPUT_START))  gameState = GAME_STATE_PLAYING;
+      else if (keyPressed(INPUT_SELECT)) { prepareGame(); gameState = GAME_STATE_TITLE_SCREEN; }
+      drawEssentials(renderer, cubes, cubeAmount);
+      drawGameText(renderer);
+      drawPausedText(renderer);
+      drawOverlay();
+      break;
+
+    case GAME_STATE_GAME_OVER:
+      if (keyPressed(INPUT_START)) { newHighScore = false; usedDebugMode = false; prepareGame(); gameState = GAME_STATE_TITLE_SCREEN; }
+      drawEssentials(renderer, cubes, cubeAmount);
+      drawGameText(renderer);
+      drawGameOverText(renderer);
+      drawOverlay();
+      break;
+  }
+
+  updateLastKeys();
+  if (showFPS) printFPS();
+  SDL_RenderPresent(renderer);
+
+  /* Native platforms: cap framerate manually */
+#ifndef __EMSCRIPTEN__
+  if (frameRate < displayRefreshRate) {
+    Uint32 frameTime = SDL_GetTicks() - now;
+    if (frameTime < ticksPerFrame) SDL_Delay(ticksPerFrame - frameTime);
+  }
+#endif
+
+  /* Web: perform cleanup when the game signals quit */
+#ifdef __EMSCRIPTEN__
+  if (quit) {
+    cleanUpText(); cleanUpMenu(); TTF_Quit();
+    cleanUpAudio(); Mix_CloseAudio(); Mix_Quit();
+    SDL_DestroyRenderer(renderer); SDL_DestroyWindow(window); SDL_Quit();
+    emscripten_cancel_main_loop();
+  }
+#endif
+}
+
+/* ─────────────────────────────────────────────── */
+
+int main(int argc, char *argv[]) {
+  (void)argc; (void)argv;
+
   SDL_Init(SDL_INIT_TIMER | SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS);
   SDL_GetCurrentDisplayMode(0, &DM);
   displayRefreshRate = (Uint16)DM.refresh_rate;
@@ -200,242 +388,21 @@ int main(int arg, char *argv[]) {
   readSaveData(false);
   optionCallback_All();
   playMusicAtIndex(OPTION_MUSIC);
-  if (OPTION_FULLSCREEN) {
-    optionCallback_Fullscreen(window);
-  }
+  if (OPTION_FULLSCREEN) optionCallback_Fullscreen(window);
   srand((Uint32)time(NULL));
   prepareGame();
 
-  Uint32 frameTime;
+#ifdef __EMSCRIPTEN__
+  /* fps=0 → use requestAnimationFrame; simulate_infinite_loop=1 */
+  emscripten_set_main_loop(mainLoopStep, 0, 1);
+#else
+  while (!quit) mainLoopStep();
 
-  while (!quit) {
-    last = now;
-    now = SDL_GetTicks();
-    deltaTime = now - last;
-
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-      switch (event.type) {
-      case SDL_QUIT:
-				quit = true;
-        break;
-      case SDL_CONTROLLERDEVICEADDED:
-      case SDL_CONTROLLERDEVICEREMOVED:
-        controllerInit();
-        break;
-#if defined(PC)
-      case SDL_WINDOWEVENT:
-        if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
-          handleWindowResize(&event);
-        }
-        break;
-#endif
-      default:
-        break;
-      }
-    }
-
-    handlePlayerInput();
-    handleChangeSong();
-    handleFullscreenToggle();
-
-    switch (gameState) {
-      case GAME_STATE_STARTED:
-        drawEssentials(renderer, cubes, cubeAmount);
-        drawTitleScreenText(renderer, false);
-        drawOverlay();
-        fadeInFromBlack(renderer);
-        if (now - startingTick > INIT_FADE_LENGTH) {
-          SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-          gameState = GAME_STATE_TITLE_SCREEN;
-        }
-        break;
-
-      case GAME_STATE_TITLE_SCREEN:
-        if (keyPressed(INPUT_START)) {
-          scoreVal = 0;
-          numLives = OPTION_LIVES + 1;
-          playSFX(SFX_ZOOM);
-          gameStart = SDL_GetTicks();
-          invinceStart = gameStart;
-          gameState = GAME_STATE_PLAYING;
-        } else if (keyPressed(INPUT_SELECT)) {
-          openPage(&optionPage_Main, true);
-          gameState = GAME_STATE_OPTIONS_MAIN;
-        }
-        drawEssentials(renderer, cubes, cubeAmount);
-        drawTitleScreenText(renderer, true);
-        drawOverlay();
-        break;
-
-      case GAME_STATE_OPTIONS_MAIN:
-        if (keyPressed(INPUT_A) || keyPressed(INPUT_START)) {
-          switch (optionPage_Main.index) {
-            case 4:
-              credits_paused = false;
-              credits_startTime = SDL_GetTicks();
-              break;
-            case 6:
-              forceIndexReset = true;
-              initStaticMessages(renderer);
-              optionCallback_All();
-              playSFX(SFX_THUNK);
-              forceIndexReset = false;
-              break;
-            default:
-              break;
-          }
-        }
-				drawEssentials(renderer, cubes, cubeAmount);
-        handlePage(renderer, window, &optionPage_Main, true);
-        drawOverlay();
-				break;
-
-      case GAME_STATE_OPTIONS_GAME:
-        drawEssentials(renderer, cubes, cubeAmount);
-        handlePage(renderer, window, &optionPage_Game, true);
-        drawOverlay();
-        break;
-
-      case GAME_STATE_OPTIONS_VISUAL:
-        drawEssentials(renderer, cubes, cubeAmount);
-        handlePage(renderer, window, &optionPage_Visual, true);
-        drawOverlay();
-        break;
-
-      case GAME_STATE_OPTIONS_AUDIO:
-        drawEssentials(renderer, cubes, cubeAmount);
-        handlePage(renderer, window, &optionPage_Audio, true);
-        drawOverlay();
-        break;
-
-      case GAME_STATE_INSTRUCTIONS:
-        drawEssentials(renderer, cubes, cubeAmount);
-        handlePage(renderer, window, &optionPage_Empty, false);
-        drawInstructionsText(renderer);
-        drawOverlay();
-        break;
-
-			case GAME_STATE_CREDITS:
-        drawEssentials(renderer, cubes, cubeAmount);
-        handlePage(renderer, window, &optionPage_Empty, false);
-        drawCreditsText(renderer, now);
-        if (keyHeld(INPUT_LEFT) && (keyPressed(INPUT_X) || keyPressed(INPUT_Y))) {
-          showFPS = !showFPS;
-          playSFX(SFX_DING_A);
-        }
-#if defined(THREEDS)
-        if (keyHeld(INPUT_DOWN) && keyHeld(INPUT_RIGHT) && (keyPressed(INPUT_X) || keyPressed(INPUT_Y))) {
-          useNew3DSClockSpeed = !useNew3DSClockSpeed;
-          osSetSpeedupEnable(useNew3DSClockSpeed);
-        }
-#endif
-        drawOverlay();
-        break;
-
-      case GAME_STATE_RESET_HIGH_SCORE:
-        handleResetHighScore();
-        drawEssentials(renderer, cubes, cubeAmount);
-        handlePage(renderer, window, &optionPage_Empty, false);
-        drawResetHighScoreText(renderer);
-        drawOverlay();
-        break;
-
-      case GAME_STATE_QUIT:
-        if (keyPressed(INPUT_A) || keyPressed(INPUT_START)) {
-          quit = true;
-          writeSaveData();
-        }
-        drawEssentials(renderer, cubes, cubeAmount);
-        handlePage(renderer, window, &optionPage_Empty, false);
-        drawQuitText(renderer);
-        drawOverlay();
-        break;
-
-      case GAME_STATE_PLAYING:
-        gameLoop();
-        if (keyPressed(INPUT_START)) {
-          gameState = GAME_STATE_PAUSED;
-        } else if (keyPressed(INPUT_X) || keyPressed(INPUT_Y)) {
-          if (!showCursor) {
-            showCursor = true;
-            playSFX(SFX_DING_A);
-          } else {
-            showCursor = false;
-            playSFX(SFX_DING_B);
-          }
-        }
-        drawEssentials(renderer, cubes, cubeAmount);
-        drawGameText(renderer);
-        drawCursor(renderer);
-        drawOverlay();
-        break;
-
-      case GAME_STATE_PAUSED:
-        if (debugMode) {
-          if (dirPressedLeft() && cubeBoundsBase > 2.5f && invincibilityResetIndex < 6) {
-            cubeBoundsBase -= 0.1f;
-            optionCallback_CubeFrequency();
-            prepareGame();
-          } else if (dirPressedRight() && cubeBoundsBase < 13.1f && invincibilityResetIndex < 6) {
-            cubeBoundsBase += 0.1f;
-            optionCallback_CubeFrequency();
-            prepareGame();
-          }
-        }
-        handleInvincibility();
-        if (keyPressed(INPUT_START)) {
-          gameState = GAME_STATE_PLAYING;
-        } else if (keyPressed(INPUT_SELECT)) {
-          prepareGame();
-          gameState = GAME_STATE_TITLE_SCREEN;
-        }
-        drawEssentials(renderer, cubes, cubeAmount);
-        drawGameText(renderer);
-        drawPausedText(renderer);
-        drawOverlay();
-        break;
-
-      case GAME_STATE_GAME_OVER:
-        if (keyPressed(INPUT_START)) {
-          newHighScore = false;
-          usedDebugMode = false;
-          prepareGame();
-          gameState = GAME_STATE_TITLE_SCREEN;
-        }
-        drawEssentials(renderer, cubes, cubeAmount);
-        drawGameText(renderer);
-        drawGameOverText(renderer);
-        drawOverlay();
-        break;
-    }
-
-    updateLastKeys();
-
-    if (showFPS) {
-      printFPS();
-    }
-    SDL_RenderPresent(renderer);
-
-    /* Cap Framerate */
-    if (frameRate < displayRefreshRate) {
-      frameTime = SDL_GetTicks() - now;
-      if (frameTime < ticksPerFrame) {
-        SDL_Delay(ticksPerFrame - frameTime);
-      }
-    }
-  }
-
-  cleanUpText();
-  cleanUpMenu();
-  TTF_Quit();
-  cleanUpAudio();
-  Mix_CloseAudio();
-  Mix_Quit();
-  SDL_DestroyRenderer(renderer);
-  SDL_DestroyWindow(window);
-  SDL_Quit();
+  cleanUpText(); cleanUpMenu(); TTF_Quit();
+  cleanUpAudio(); Mix_CloseAudio(); Mix_Quit();
+  SDL_DestroyRenderer(renderer); SDL_DestroyWindow(window); SDL_Quit();
   systemSpecificClose();
+#endif
 
   return 0;
 }

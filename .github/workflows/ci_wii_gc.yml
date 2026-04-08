@@ -1,0 +1,61 @@
+name: CI – Wii & GameCube
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'src/**'
+      - 'Makefiles/Makefile_wii'
+      - 'Makefiles/Makefile_gc'
+      - '.github/workflows/ci_wii_gc.yml'
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  build-wii:
+    name: Build Wii (devkitPro)
+    runs-on: ubuntu-24.04
+    container:
+      image: devkitpro/devkitppc:latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Wii portlibs
+        run: dkp-pacman -Sy --noconfirm wii-sdl2 wii-sdl2_mixer wii-sdl2_ttf ppc-libfat
+
+      - name: Build
+        run: make -f Makefiles/Makefile_wii -j$(nproc)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockamokremix-wii
+          path: |
+            *.dol
+            *.elf
+          retention-days: 14
+
+  build-gamecube:
+    name: Build GameCube (devkitPro)
+    runs-on: ubuntu-24.04
+    container:
+      image: devkitpro/devkitppc:latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GC portlibs
+        run: dkp-pacman -Sy --noconfirm gamecube-sdl2 gamecube-sdl2_mixer gamecube-sdl2_ttf ppc-libfat
+
+      - name: Build
+        run: make -f Makefiles/Makefile_gc -j$(nproc)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockamokremix-gamecube
+          path: |
+            *.dol
+            *.elf
+          retention-days: 14

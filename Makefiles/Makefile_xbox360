@@ -1,0 +1,44 @@
+# Blockamok Remix – Xbox 360 (libxenon) build
+# Prerequisites: libxenon toolchain (powerpc64-xenon-elf-gcc on PATH)
+# Usage: make -f Makefiles/Makefile_xbox360
+
+XBE_TITLE  := BlockamokRemix
+SRC_DIR    := src
+SRCS       := $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/**/*.c)
+
+XENON_DIR  ?= /usr/local/xenon
+XENON_CC   := powerpc64-xenon-elf-gcc
+XENON_LD   := powerpc64-xenon-elf-gcc
+OBJ_DIR    := build_xbox360
+
+OBJS       := $(SRCS:%.c=$(OBJ_DIR)/%.o)
+TARGET     := $(XBE_TITLE).elf32
+
+# libxenon includes SDL2 ported via xenon-SDL
+CFLAGS := \
+    -O2 -Wall \
+    -DXBOX360 -DPC \
+    -mcpu=cell \
+    -I$(XENON_DIR)/usr/include \
+    -I$(XENON_DIR)/usr/include/SDL2
+
+LDFLAGS := \
+    -L$(XENON_DIR)/usr/lib \
+    -lSDL2 -lSDL2_mixer -lSDL2_ttf \
+    -lxenon -lm \
+    -T$(XENON_DIR)/app.lds
+
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(XENON_LD) $(OBJS) $(LDFLAGS) -o $@
+	$(XENON_DIR)/bin/xenon-elf2xex $@ $(XBE_TITLE).xex
+
+$(OBJ_DIR)/%.o: %.c
+	mkdir -p $(dir $@)
+	$(XENON_CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -rf $(OBJ_DIR) $(TARGET) $(XBE_TITLE).xex

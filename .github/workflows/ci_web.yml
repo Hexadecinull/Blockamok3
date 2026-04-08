@@ -1,0 +1,80 @@
+name: CI – Web (Emscripten / WASM)
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'src/**'
+      - 'Makefiles/Makefile_wasm'
+      - 'Makefiles/shell_wasm.html'
+      - '.github/workflows/ci_web.yml'
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  build:
+    name: Build WebAssembly
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: '3.1.59'
+          actions-cache-folder: '.emsdk-cache'
+
+      - name: Verify emcc
+        run: emcc --version
+
+      - name: Build WASM
+        run: make -f Makefiles/Makefile_wasm -j$(nproc)
+
+      - name: Verify output files
+        run: |
+          test -f web/index.html  && echo "✅ index.html"
+          test -f web/blockamok.js   && echo "✅ blockamok.js"   || (ls web/ && exit 1)
+          test -f web/blockamok.wasm && echo "✅ blockamok.wasm" || exit 1
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockamokremix-web
+          path: web/
+          retention-days: 30
+
+  # Optional: deploy to GitHub Pages on push to main
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: Download web artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: blockamokremix-web
+          path: web/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload to Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/
+
+      - name: Deploy
+        id: deploy
+        uses: actions/deploy-pages@v4

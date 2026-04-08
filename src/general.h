@@ -28,6 +28,16 @@
 #include <hal/audio.h>
 #include <windows.h>
 #include <xboxkrnl/xboxkrnl.h>
+#elif defined(XBOX360)
+/* libxenon SDK headers */
+#include <xenon_smc/xenon_smc.h>
+#include <xenon_sound/sound.h>
+#include <input/input.h>
+#elif defined(PS3)
+/* PSL1GHT / ps3toolchain headers */
+#include <io/pad.h>
+#include <sys/process.h>
+#include <sysutil/sysutil_sysparam.h>
 #elif defined(LINUX)
 #include <sys/stat.h>
 #endif

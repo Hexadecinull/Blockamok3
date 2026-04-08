@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Blockamok Remix</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #111; display: flex; flex-direction: column;
+           align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    #canvas-wrap { position: relative; }
+    canvas.emscripten { display: block; border: none; cursor: crosshair; }
+    #status { color: #7cf; font-family: monospace; font-size: 14px;
+              margin-top: 10px; min-height: 20px; }
+    #progress { width: 300px; height: 6px; background: #333; border-radius: 3px;
+                margin-top: 6px; overflow: hidden; }
+    #progress-bar { height: 100%; background: #4ef; width: 0%; transition: width .1s; }
+  </style>
+</head>
+<body>
+  <div id="canvas-wrap">
+    <canvas class="emscripten" id="canvas" tabindex="1" oncontextmenu="event.preventDefault()"></canvas>
+  </div>
+  <div id="status">Loading…</div>
+  <div id="progress"><div id="progress-bar"></div></div>
+
+  <script>
+    var statusEl = document.getElementById('status');
+    var progressBar = document.getElementById('progress-bar');
+
+    var Module = {
+      canvas: document.getElementById('canvas'),
+      setStatus: function(text) {
+        if (!text) { statusEl.style.display = 'none'; return; }
+        statusEl.textContent = text;
+        var m = text.match(/(\d+(\.\d+)?)\/(\d+)/);
+        if (m) progressBar.style.width = (100 * parseInt(m[1]) / parseInt(m[3])) + '%';
+      },
+      onRuntimeInitialized: function() {
+        statusEl.style.display = 'none';
+        document.getElementById('progress').style.display = 'none';
+      }
+    };
+
+    // Resize canvas to fill available space while keeping aspect ratio
+    function resizeCanvas() {
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var size = Math.min(vw, vh);
+      Module.canvas.style.width  = size + 'px';
+      Module.canvas.style.height = size + 'px';
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+  </script>
+  {{{ SCRIPT }}}
+</body>
+</html>

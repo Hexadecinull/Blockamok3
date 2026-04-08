@@ -1,0 +1,40 @@
+name: CI – Nintendo Switch
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'src/**'
+      - 'Makefiles/Makefile_switch'
+      - '.github/workflows/ci_switch.yml'
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  build:
+    name: Build Nintendo Switch (devkitPro)
+    runs-on: ubuntu-24.04
+    container:
+      image: devkitpro/devkita64:latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install switch-portlibs (SDL2 etc.)
+        run: |
+          dkp-pacman -Sy --noconfirm switch-portlibs switch-sdl2 switch-sdl2_mixer switch-sdl2_ttf
+
+      - name: Build
+        run: make -f Makefiles/Makefile_switch -j$(nproc)
+
+      - name: Verify NRO exists
+        run: ls -lh *.nro 2>/dev/null || ls -lh *.elf
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockamokremix-switch
+          path: |
+            *.nro
+            *.nacp
+          retention-days: 14

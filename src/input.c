@@ -4,6 +4,10 @@
 #include <ogc/pad.h>
 #elif defined(PSP)
 #include <pspctrl.h>
+#elif defined(XBOX360)
+#include <input/input.h>       /* libxenon USB HID input */
+#elif defined(PS3)
+#include <io/pad.h>            /* PSL1GHT pad API */
 #endif
 
 #include "./input.h"
@@ -251,7 +255,7 @@ static inline void gameSpecificInputBehavior() {
 // INPUT MAPPING //
 ///////////////////
 
-#if !(defined(PSP) || defined(GAMECUBE) || defined(WII))
+#if !(defined(PSP) || defined(GAMECUBE) || defined(WII) || defined(XBOX360) || defined(PS3))
 static inline void mapInputToVar_SDL2(Uint16 varBtn, SDL_GameControllerButton inputBtn) {
 	for (int i = 0; i < 4; i++) {
 		if (controllers[i] && SDL_GameControllerGetButton(controllers[i], inputBtn)) {
@@ -261,7 +265,7 @@ static inline void mapInputToVar_SDL2(Uint16 varBtn, SDL_GameControllerButton in
 }
 #endif
 
-#if defined(PC) || defined(ANDROID)
+#if defined(PC) || defined(ANDROID) || defined(__EMSCRIPTEN__)
 static inline void mapInputToVar_Keyboard(const Uint8 *state, Uint16 varBtn, Sint32 inputBtn) {
 	if (state[inputBtn]) {
 		heldKeys |= varBtn;
@@ -279,7 +283,7 @@ static inline void mapInputToVar_GeneralConsole(Uint32 heldButtons, Uint16 varBt
 
 
 static void handleAllCurrentInputs() {
-#if !(defined(PSP) || defined(GAMECUBE) || defined(WII))
+#if !(defined(PSP) || defined(GAMECUBE) || defined(WII) || defined(XBOX360) || defined(PS3))
 	mapInputToVar_SDL2(INPUT_UP, SDL_CONTROLLER_BUTTON_DPAD_UP);
 	mapInputToVar_SDL2(INPUT_DOWN, SDL_CONTROLLER_BUTTON_DPAD_DOWN);
 	mapInputToVar_SDL2(INPUT_LEFT, SDL_CONTROLLER_BUTTON_DPAD_LEFT);
@@ -318,9 +322,6 @@ static void handleAllCurrentInputs() {
 	leftStick.x = 0;
 	leftStick.y = 0;
 	bool leftXSet = false, leftYSet = false;
-	//rightStick.x = 0;
-	//rightStick.y = 0;
-	//bool rightXSet = false, rightYSet = false;
 
 	for (int i = 0; i < 4; i++) {
 		if (controllers[i]) {
@@ -328,10 +329,6 @@ static void handleAllCurrentInputs() {
 			tempLeft.x = SDL_GameControllerGetAxis(controllers[i], SDL_CONTROLLER_AXIS_LEFTX);
 			tempLeft.y = SDL_GameControllerGetAxis(controllers[i], SDL_CONTROLLER_AXIS_LEFTY);
 			applyStickZones(&tempLeft);
-			//Stick tempRight = rightStick;
-			//tempRight.x = SDL_GameControllerGetAxis(controllers[i], SDL_CONTROLLER_AXIS_RIGHTX);
-			//tempRight.y = SDL_GameControllerGetAxis(controllers[i], SDL_CONTROLLER_AXIS_RIGHTY);
-			//applyStickZones(&tempRight);
 
 			if (!leftXSet && tempLeft.x != 0) {
 				leftStick.x = tempLeft.x;
@@ -341,25 +338,15 @@ static void handleAllCurrentInputs() {
 				leftStick.y = tempLeft.y;
 				leftYSet = true;
 			}
-			//if (!rightXSet && tempRight.x != 0) {
-			//	rightStick.x = tempRight.x;
-			//	rightXSet = true;
-			//}
-			//if (!rightYSet && tempRight.y != 0) {
-			//	rightStick.y = tempRight.y;
-			//	rightYSet = true;
-			//}
-			// Stop early if all axes are set
 			if (leftXSet && leftYSet) {
 				break;
 			}
 		}
 	}
 	applyStickZones(&leftStick);
-	//applyStickZones(&rightStick);
 #endif
 
-#if defined(PC) || defined(ANDROID)
+#if defined(PC) || defined(ANDROID) || defined(__EMSCRIPTEN__)
 	const Uint8 *state = SDL_GetKeyboardState(NULL);
 	mapInputToVar_Keyboard(state, INPUT_UP, SDL_SCANCODE_UP);
 	mapInputToVar_Keyboard(state, INPUT_UP, SDL_SCANCODE_W);
@@ -407,10 +394,7 @@ static void handleAllCurrentInputs() {
 
 	leftStick.x = PAD_StickX(0) * 256;
 	leftStick.y = PAD_StickY(0) * -256;
-	//rightStick.x = PAD_SubStickX(0) * 256;
-	//rightStick.y = PAD_SubStickY(0) * -256;
 	applyStickZones(&leftStick);
-	//applyStickZones(&rightStick);
 #endif
 
 #if defined(WII)
@@ -444,21 +428,10 @@ static void handleAllCurrentInputs() {
 	expansion_t wii_exp;
 	WPAD_Expansion(WPAD_CHAN_0, &wii_exp);
 	if (wii_exp.type == EXP_CLASSIC) {
-		if (leftStick.x == 0) {
-			leftStick.x = ((Sint16)wii_exp.classic.ljs.pos.x - 32) * 1023;
-		}
-		if (leftStick.y == 0) {
-			leftStick.y = ((Sint16)wii_exp.classic.ljs.pos.y - 32) * -1023;
-		}
-		//if (rightStick.x == 0) {
-		//	rightStick.x = ((Sint16)wii_exp.classic.rjs.pos.x - 32) * 1023;
-		//}
-		//if (rightStick.y == 0) {
-		//	rightStick.y = ((Sint16)wii_exp.classic.rjs.pos.y - 32) * -1023;
-		//}
+		if (leftStick.x == 0) leftStick.x = ((Sint16)wii_exp.classic.ljs.pos.x - 32) * 1023;
+		if (leftStick.y == 0) leftStick.y = ((Sint16)wii_exp.classic.ljs.pos.y - 32) * -1023;
 	}
 	applyStickZones(&leftStick);
-	//applyStickZones(&rightStick);
 #endif
 
 #if defined(PSP)
@@ -480,6 +453,65 @@ static void handleAllCurrentInputs() {
 	leftStick.x = (pad.Lx - 128) * 256;
 	leftStick.y = (pad.Ly - 128) * 256;
 	applyStickZones(&leftStick);
+#endif
+
+/* ── Xbox 360 (libxenon) ─────────────────────────────────────────────────── */
+#if defined(XBOX360)
+	usb_do_poll();
+	struct controller_data_s cd;
+	get_controller_data(&cd, 0);
+
+	if (cd.up)     heldKeys |= INPUT_UP;
+	if (cd.down)   heldKeys |= INPUT_DOWN;
+	if (cd.left)   heldKeys |= INPUT_LEFT;
+	if (cd.right)  heldKeys |= INPUT_RIGHT;
+	if (cd.a)      heldKeys |= INPUT_A;
+	if (cd.b)      heldKeys |= INPUT_B;
+	if (cd.x)      heldKeys |= INPUT_X;
+	if (cd.y)      heldKeys |= INPUT_Y;
+	if (cd.lb)     heldKeys |= INPUT_L;
+	if (cd.rb)     heldKeys |= INPUT_R;
+	if (cd.lt > 64) heldKeys |= INPUT_ZL;
+	if (cd.rt > 64) heldKeys |= INPUT_ZR;
+	if (cd.start)  heldKeys |= INPUT_START;
+	if (cd.back)   heldKeys |= INPUT_SELECT;
+	if (cd.ls)     heldKeys |= INPUT_LS;
+
+	/* Analog stick – libxenon returns -32768..32767 */
+	leftStick.x = (Sint16)cd.s1_x;
+	leftStick.y = (Sint16)-cd.s1_y; /* invert Y to match SDL convention */
+	applyStickZones(&leftStick);
+#endif
+
+/* ── PS3 (PSL1GHT ioPad) ─────────────────────────────────────────────────── */
+#if defined(PS3)
+	padInfo2 padInfo;
+	ioPadGetInfo2(&padInfo);
+	if (padInfo.port_status[0]) {
+		padData padData;
+		ioPadGetData(0, &padData);
+
+		if (padData.BTN_UP)       heldKeys |= INPUT_UP;
+		if (padData.BTN_DOWN)     heldKeys |= INPUT_DOWN;
+		if (padData.BTN_LEFT)     heldKeys |= INPUT_LEFT;
+		if (padData.BTN_RIGHT)    heldKeys |= INPUT_RIGHT;
+		if (padData.BTN_CROSS)    heldKeys |= INPUT_A;   /* Cross = confirm */
+		if (padData.BTN_CIRCLE)   heldKeys |= INPUT_B;
+		if (padData.BTN_SQUARE)   heldKeys |= INPUT_X;
+		if (padData.BTN_TRIANGLE) heldKeys |= INPUT_Y;
+		if (padData.BTN_L1)       heldKeys |= INPUT_L;
+		if (padData.BTN_R1)       heldKeys |= INPUT_R;
+		if (padData.BTN_L2)       heldKeys |= INPUT_ZL;
+		if (padData.BTN_R2)       heldKeys |= INPUT_ZR;
+		if (padData.BTN_L3)       heldKeys |= INPUT_LS;
+		if (padData.BTN_START)    heldKeys |= INPUT_START;
+		if (padData.BTN_SELECT)   heldKeys |= INPUT_SELECT;
+
+		/* PSL1GHT analog: 0..255, centre = 128 */
+		leftStick.x = (Sint16)((padData.ANA_L_H - 128) * 256);
+		leftStick.y = (Sint16)((padData.ANA_L_V - 128) * 256);
+		applyStickZones(&leftStick);
+	}
 #endif
 
 	gameSpecificInputBehavior();
@@ -574,6 +606,40 @@ static void handleAllCurrentInputs() {
 	const char *btn_RS = "R-Stick";
 	const char *btn_Start = "+";
 	const char *btn_Select = "-";
+#elif defined(XBOX) || defined(XBOX360)
+	const char *btn_Up = "Up";
+	const char *btn_Down = "Down";
+	const char *btn_Left = "Left";
+	const char *btn_Right = "Right";
+	const char *btn_A = "A";
+	const char *btn_B = "B";
+	const char *btn_X = "X";
+	const char *btn_Y = "Y";
+	const char *btn_L = "LB";
+	const char *btn_R = "RB";
+	const char *btn_ZL = "LT";
+	const char *btn_ZR = "RT";
+	const char *btn_LS = "L-Stick";
+	const char *btn_RS = "R-Stick";
+	const char *btn_Start = "Start";
+	const char *btn_Select = "Back";
+#elif defined(PS3)
+	const char *btn_Up = "Up";
+	const char *btn_Down = "Down";
+	const char *btn_Left = "Left";
+	const char *btn_Right = "Right";
+	const char *btn_A = "Cross";
+	const char *btn_B = "Circle";
+	const char *btn_X = "Square";
+	const char *btn_Y = "Triangle";
+	const char *btn_L = "L1";
+	const char *btn_R = "R1";
+	const char *btn_ZL = "L2";
+	const char *btn_ZR = "R2";
+	const char *btn_LS = "L3";
+	const char *btn_RS = "R3";
+	const char *btn_Start = "Start";
+	const char *btn_Select = "Select";
 #else
 	const char *btn_Up = "Up";
 	const char *btn_Down = "Down";

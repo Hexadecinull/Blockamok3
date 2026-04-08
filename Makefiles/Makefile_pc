@@ -1,6 +1,7 @@
-# Usage: In MSYS2 MinGW 64-bit shell, `make`
+# Blockamok Remix – Windows (MSYS2 MinGW64) build
+# Usage: make -f Makefiles/Makefile_pc            (64-bit, default)
+#        make -f Makefiles/Makefile_pc LOW_END=1  (extra low-end tuning)
 
-# ─── Directories & Target ────────────────────────────────────────────────────
 OBJ_DIR    := build_win64
 EXE        := BlockamokRemix.exe
 
@@ -11,24 +12,27 @@ OBJS       := $(SRCS:%.c=$(OBJ_DIR)/%.o)
 RES_RC     := release-resources/resource.rc
 RES_OBJ    := $(OBJ_DIR)/resource.o
 
-# ─── Toolchain & Flags ───────────────────────────────────────────────────────
 CC         := x86_64-w64-mingw32-g++
 PKG        := pkgconf
 
-# Optimize-for-size, warnings, platform defines,
-# per-function/data sections + LTO,
-# plus SDL2 include flags (static).
-CFLAGS     := -Os -Wall -Wextra \
-              -DPC -D_WIN32 \
-              -ffunction-sections -fdata-sections -flto=4 \
-              $(shell $(PKG) --static --cflags sdl2)
+# ── Optimisation profile ─────────────────────────────────────────────────────
+# Default: -O2 -march=x86-64 (runs on anything from ~2008 onward)
+# LOW_END=1: -Os -march=i686 (aggressively minimise code size + cache pressure)
+ifeq ($(LOW_END),1)
+OPT_FLAGS := -Os -march=i686 -mtune=generic -DLOW_SPEC_BG -DFORCE_DRAW_OVERLAY
+else
+OPT_FLAGS := -O2 -march=x86-64 -mtune=generic
+endif
 
-# Static link against libgcc, SDL2 + extensions + gc-sections + strip + LTO
-LDFLAGS    := -static -static-libgcc \
-              $(shell $(PKG) --static --libs sdl2 SDL2_mixer SDL2_ttf) \
-              -Wl,--gc-sections -s -flto
+CFLAGS := $(OPT_FLAGS) -Wall -Wextra \
+          -DPC -D_WIN32 \
+          -ffunction-sections -fdata-sections -flto=4 \
+          $(shell $(PKG) --static --cflags sdl2)
 
-# ─── Build Rules ──────────────────────────────────────────────────────────────
+LDFLAGS := -static -static-libgcc \
+           $(shell $(PKG) --static --libs sdl2 SDL2_mixer SDL2_ttf) \
+           -Wl,--gc-sections -s -flto
+
 .PHONY: all clean
 
 all: $(EXE)

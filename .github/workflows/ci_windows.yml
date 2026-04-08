@@ -1,0 +1,164 @@
+name: CI – Windows
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'src/**'
+      - 'Makefiles/Makefile_pc'
+      - 'Makefiles/Makefile_pc_x86'
+      - 'release-resources/resource.rc'
+      - 'release-resources/resource.h'
+      - '.github/workflows/ci_windows.yml'
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  build-msys2-x64:
+    name: Build Windows x64 (MSYS2)
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-SDL2_mixer
+            mingw-w64-x86_64-SDL2_ttf
+            mingw-w64-x86_64-pkgconf
+            make
+
+      - name: Build (normal)
+        run: make -f Makefiles/Makefile_pc -j$(nproc)
+
+      - name: Verify EXE exists
+        run: test -f BlockamokRemix.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockamokremix-windows-x64
+          path: BlockamokRemix.exe
+          retention-days: 14
+
+  build-msys2-x64-lowend:
+    name: Build Windows x64 Low-End (MSYS2)
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-SDL2_mixer
+            mingw-w64-x86_64-SDL2_ttf
+            mingw-w64-x86_64-pkgconf
+            make
+
+      - name: Build (low-end)
+        run: make -f Makefiles/Makefile_pc LOW_END=1 -j$(nproc)
+
+      - name: Verify EXE exists
+        run: test -f BlockamokRemix.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockamokremix-windows-x64-lowend
+          path: BlockamokRemix.exe
+          retention-days: 14
+
+  build-msys2-x86:
+    name: Build Windows x86 (MSYS2)
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW32
+          update: true
+          install: >-
+            mingw-w64-i686-gcc
+            mingw-w64-i686-SDL2
+            mingw-w64-i686-SDL2_mixer
+            mingw-w64-i686-SDL2_ttf
+            mingw-w64-i686-pkgconf
+            make
+
+      - name: Build x86
+        run: make -f Makefiles/Makefile_pc_x86 -j$(nproc)
+
+      - name: Verify EXE exists
+        run: test -f BlockamokRemix.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockamokremix-windows-x86
+          path: BlockamokRemix.exe
+          retention-days: 14
+
+  build-visualstudio:
+    name: Build Windows (Visual Studio 2022)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SDL2 headers
+        id: cache-sdl2
+        uses: actions/cache@v4
+        with:
+          path: SDL2
+          key: sdl2-vc-2.30.x
+
+      - name: Download SDL2 VC libraries
+        if: steps.cache-sdl2.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $sdlVer   = "2.30.10"
+          $mixerVer = "2.8.0"
+          $ttfVer   = "2.22.0"
+          function Get-SDL($url,$dest) { Invoke-WebRequest $url -OutFile $dest; Expand-Archive $dest -DestinationPath SDL2 -Force }
+          New-Item -ItemType Directory -Force SDL2 | Out-Null
+          Get-SDL "https://github.com/libsdl-org/SDL/releases/download/release-$sdlVer/SDL2-devel-$sdlVer-VC.zip"            "SDL2.zip"
+          Get-SDL "https://github.com/libsdl-org/SDL_mixer/releases/download/release-$mixerVer/SDL2_mixer-devel-$mixerVer-VC.zip" "SDL2_mixer.zip"
+          Get-SDL "https://github.com/libsdl-org/SDL_ttf/releases/download/release-$ttfVer/SDL2_ttf-devel-$ttfVer-VC.zip"    "SDL2_ttf.zip"
+
+      - name: Build with MSBuild
+        run: |
+          & "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe" `
+            blockamok.sln /p:Configuration=Release /p:Platform=x64 /m
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blockamokremix-windows-vs2022-x64
+          path: |
+            x64/Release/BlockamokRemix.exe
+            x64/Release/*.dll
+          retention-days: 14

@@ -1,6 +1,9 @@
 # Blockamok Remix – Windows (MSYS2 MinGW64) build
-# Usage: make -f Makefiles/Makefile_pc            (64-bit, default)
-#        make -f Makefiles/Makefile_pc LOW_END=1  (extra low-end tuning)
+# Usage: make -f Makefiles/Makefile_pc            (default, optimised)
+#        make -f Makefiles/Makefile_pc LOW_END=1  (size-optimised, enables LOW_SPEC_BG)
+#
+# Note: LOW_END on this x64 Makefile optimises for code size (-Os) and enables
+# the low-spec rendering paths. For a true i686 binary use Makefile_pc_x86.
 
 OBJ_DIR    := build_win64
 EXE        := BlockamokRemix.exe
@@ -15,13 +18,11 @@ RES_OBJ    := $(OBJ_DIR)/resource.o
 CC         := x86_64-w64-mingw32-g++
 PKG        := pkgconf
 
-# ── Optimisation profile ─────────────────────────────────────────────────────
-# Default: -O2 -march=x86-64 (runs on anything from ~2008 onward)
-# LOW_END=1: -Os -march=i686 (aggressively minimise code size + cache pressure)
+# LOW_END=1 → size-optimised + low-spec rendering; march stays x86-64 (x64 toolchain requirement)
 ifeq ($(LOW_END),1)
-OPT_FLAGS := -Os -march=i686 -mtune=generic -DLOW_SPEC_BG -DFORCE_DRAW_OVERLAY
+OPT_FLAGS  := -Os -march=x86-64 -mtune=generic -DLOW_SPEC_BG -DFORCE_DRAW_OVERLAY
 else
-OPT_FLAGS := -O2 -march=x86-64 -mtune=generic
+OPT_FLAGS  := -O2 -march=x86-64 -mtune=generic
 endif
 
 CFLAGS := $(OPT_FLAGS) -Wall -Wextra \

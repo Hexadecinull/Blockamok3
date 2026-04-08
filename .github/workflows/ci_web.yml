@@ -32,10 +32,12 @@ jobs:
         run: make -f Makefiles/Makefile_wasm -j$(nproc)
 
       - name: Verify output files
+        # Emscripten names outputs after the target (index.html → index.js, index.wasm, index.data)
         run: |
-          test -f web/index.html  && echo "✅ index.html"
-          test -f web/blockamok.js   && echo "✅ blockamok.js"   || (ls web/ && exit 1)
-          test -f web/blockamok.wasm && echo "✅ blockamok.wasm" || exit 1
+          test -f web/index.html  && echo "✅ index.html"  || (echo "❌ index.html missing";  exit 1)
+          test -f web/index.js    && echo "✅ index.js"    || (echo "❌ index.js missing";    exit 1)
+          test -f web/index.wasm  && echo "✅ index.wasm"  || (echo "❌ index.wasm missing";  exit 1)
+          ls -lh web/
 
       - name: Upload web artifact
         uses: actions/upload-artifact@v4
@@ -44,7 +46,6 @@ jobs:
           path: web/
           retention-days: 30
 
-  # Optional: deploy to GitHub Pages on push to main
   deploy-pages:
     name: Deploy to GitHub Pages
     needs: build

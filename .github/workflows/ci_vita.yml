@@ -19,22 +19,50 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install vitasdk
+      - name: Install host build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends cmake git curl python3 ninja-build
-          git clone https://github.com/vitasdk/vdpm /tmp/vdpm
-          cd /tmp/vdpm
-          ./bootstrap-vitasdk.sh
-          echo "$VITASDK/bin" >> $GITHUB_PATH
-        env:
-          VITASDK: /usr/local/vitasdk
+          sudo apt-get install -y --no-install-recommends \
+            cmake git curl python3 ninja-build zip
 
-      - name: Install SDL2 for Vita
+      - name: Cache vitasdk
+        id: cache-vitasdk
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/vitasdk
+          key: vitasdk-2024-v3
+
+      - name: Install vitasdk
+        if: steps.cache-vitasdk.outputs.cache-hit != 'true'
+        run: |
+          export VITASDK=/usr/local/vitasdk
+          sudo mkdir -p $VITASDK && sudo chown $USER:$USER $VITASDK
+          git clone --depth=1 https://github.com/vitasdk/vdpm /tmp/vdpm
+          cd /tmp/vdpm && VITASDK=$VITASDK ./bootstrap-vitasdk.sh
+
+      - name: Add vitasdk to PATH
+        run: |
+          echo "/usr/local/vitasdk/bin" >> $GITHUB_PATH
+          echo "VITASDK=/usr/local/vitasdk" >> $GITHUB_ENV
+
+      - name: Cache SDL2 Vita packages
+        id: cache-vita-sdl
+        uses: actions/cache@v4
+        with:
+          path: /tmp/vita-sdl-installed
+          key: vita-sdl2-2.28-mixer-2.6-ttf-2.22
+
+      - name: Install SDL2 / mixer / ttf for Vita via vdpm
+        if: steps.cache-vita-sdl.outputs.cache-hit != 'true'
         run: |
           export VITASDK=/usr/local/vitasdk
           export PATH=$VITASDK/bin:$PATH
-          /tmp/vdpm/vdpm SDL2 SDL2_mixer SDL2_ttf
+          cd /tmp/vdpm
+          # Install in order: SDL2 first, then mixer and ttf which depend on it
+          ./vdpm SDL2
+          ./vdpm SDL2_mixer
+          ./vdpm SDL2_ttf
+          touch /tmp/vita-sdl-installed
 
       - name: Build VPK
         run: |
@@ -42,13 +70,12 @@ jobs:
           export PATH=$VITASDK/bin:$PATH
           bash Makefiles/make_vita.sh
 
-      - name: Verify VPK exists
-        run: ls -lh *.vpk 2>/dev/null || ls -lh *.velf *.self
+      - name: Verify VPK
+        run: ls -lh *.vpk 2>/dev/null || ls -lh *.velf *.self 2>/dev/null || true
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-vita
-          path: |
-            *.vpk
+          path: '*.vpk'
           retention-days: 14
+          if-no-files-found: warn

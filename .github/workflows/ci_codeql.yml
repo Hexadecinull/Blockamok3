@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [main, master, develop]
   schedule:
-    # Run every Monday at 08:00 UTC
     - cron: '0 8 * * 1'
 
 jobs:
@@ -40,3 +39,7 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:c"
+        # Advanced Security must be enabled on the repo for upload to succeed.
+        # On public repos this is free; private repos need a GHAS licence.
+        # Results are still generated locally even if upload fails.
+        continue-on-error: true

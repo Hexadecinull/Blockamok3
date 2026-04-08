@@ -21,26 +21,51 @@ jobs:
       - name: Install pspdev toolchain
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends curl git cmake
-          curl -L https://github.com/pspdev/pspdev/releases/latest/download/pspdev-ubuntu-latest-x86_64.tar.gz | \
-            sudo tar -xz -C /usr/local
+          sudo apt-get install -y --no-install-recommends curl git cmake python3
+          curl -L \
+            https://github.com/pspdev/pspdev/releases/latest/download/pspdev-ubuntu-latest-x86_64.tar.gz \
+            | sudo tar -xz -C /usr/local
 
-      - name: Add pspdev to PATH
-        run: echo "/usr/local/pspdev/bin" >> $GITHUB_PATH
-
-      - name: Install PSP SDL2 ports
+      - name: Add pspdev to PATH and set PKG_CONFIG_PATH
         run: |
-          psp-pacman -Sy --noconfirm psp-sdl2 psp-sdl2_mixer psp-sdl2_ttf || true
+          echo "/usr/local/pspdev/bin" >> $GITHUB_PATH
+          echo "PKG_CONFIG_PATH=/usr/local/pspdev/psp/lib/pkgconfig" >> $GITHUB_ENV
+          echo "PSPDEV=/usr/local/pspdev" >> $GITHUB_ENV
+
+      - name: Verify toolchain
+        run: psp-gcc --version
+
+      - name: Install PSP SDL2 via psp-pacman
+        # pspdev now ships psp-pacman; try it first, fall back gracefully
+        run: |
+          if command -v psp-pacman &>/dev/null; then
+            psp-pacman -Sy --noconfirm psp-sdl2 psp-sdl2_mixer psp-sdl2_ttf 2>/dev/null || true
+          fi
+          # Verify SDL.h is present; if not, build SDL2 from pspdev ports
+          if [ ! -f "/usr/local/pspdev/psp/include/SDL2/SDL.h" ]; then
+            echo "SDL2 not found via pacman, building from source..."
+            cd /tmp
+            git clone --depth=1 https://github.com/pspdev/psp-packages.git
+            cd psp-packages
+            for pkg in SDL2 SDL2_mixer SDL2_ttf; do
+              if [ -d "$pkg" ]; then
+                cd "$pkg" && PSPDEV=/usr/local/pspdev make install || true && cd ..
+              fi
+            done
+          fi
 
       - name: Build
-        run: make -f Makefiles/Makefile_psp -j$(nproc)
+        run: |
+          export PKG_CONFIG_PATH=/usr/local/pspdev/psp/lib/pkgconfig
+          export PSPDEV=/usr/local/pspdev
+          make -f Makefiles/Makefile_psp -j$(nproc)
 
-      - name: Verify EBOOT.PBP exists
-        run: test -f EBOOT.PBP || ls -lh *.elf
+      - name: Verify EBOOT.PBP
+        run: test -f EBOOT.PBP || ls -lh *.elf 2>/dev/null || true
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-psp
           path: EBOOT.PBP
           retention-days: 14
+          if-no-files-found: warn

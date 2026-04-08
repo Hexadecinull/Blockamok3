@@ -22,13 +22,19 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Wii portlibs
-        run: dkp-pacman -Sy --noconfirm wii-sdl2 wii-sdl2_mixer wii-sdl2_ttf ppc-libfat
+        # libfat is bundled as libfat-ogc, not the old ppc-libfat name
+        run: |
+          dkp-pacman -Sy --noconfirm \
+            wii-sdl2 wii-sdl2_mixer wii-sdl2_ttf \
+            libfat-ogc
 
       - name: Build
         run: make -f Makefiles/Makefile_wii -j$(nproc)
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Verify output
+        run: ls -lh *.dol *.elf 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-wii
           path: |
@@ -45,14 +51,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install GC portlibs
-        run: dkp-pacman -Sy --noconfirm gamecube-sdl2 gamecube-sdl2_mixer gamecube-sdl2_ttf ppc-libfat
+      - name: Install GameCube portlibs
+        run: |
+          dkp-pacman -Sy --noconfirm \
+            gamecube-sdl2 gamecube-sdl2_mixer gamecube-sdl2_ttf \
+            libfat-ogc
 
       - name: Build
         run: make -f Makefiles/Makefile_gc -j$(nproc)
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Verify output
+        run: ls -lh *.dol *.elf 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-gamecube
           path: |

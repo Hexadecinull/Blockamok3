@@ -72,3 +72,14 @@ This Markdown is made to list all platforms supported by Blockamok Remix² as we
 - **Makefile:** `make -f Makefiles/Makefile_wasm`
 - **Define:** `-D__EMSCRIPTEN__`
 - **Notes:** Uses `emscripten_set_main_loop()` for browser-friendly frame scheduling. All SDL2 subsystems pulled in via Emscripten ports. Outputs to `web/`. Keyboard + gamepad supported. Automatically deployed to GitHub Pages on push to `main`.
+
+---
+
+## Emulator Notes
+
+### Nintendo Switch – Eden / yuzu-android
+Eden (a yuzu fork for Android) crashes when launching the NRO with **NCE (Native Code Execution)** mode enabled. The crash originates entirely inside Eden's own NCE patcher (`core/arm/nce/patcher.cpp:PatchText` hitting an unreachable assertion) and is **not caused by Blockamok**. The NRO itself is valid and runs correctly on hardware and in other emulators.
+
+**Workaround:** In Eden → Settings → CPU → change **CPU Backend** from *NCE* to *Dynarmic (JIT)*. The game runs fine with JIT.
+
+Alternative emulators that work without this issue: **Ryujinx**, **Yuzu** (legacy builds).

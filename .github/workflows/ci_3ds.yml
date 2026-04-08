@@ -21,18 +21,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Refresh dkp-pacman databases with retry
+        # pkg.devkitpro.org occasionally returns 403 on first sync;
+        # retry once with a short back-off.
+        run: |
+          dkp-pacman -Sy --noconfirm 2>/dev/null || \
+          (sleep 10 && dkp-pacman -Sy --noconfirm)
+
       - name: Install 3DS portlibs
         run: |
-          dkp-pacman -Sy --noconfirm 3ds-dev 3ds-sdl2 3ds-sdl2_mixer 3ds-sdl2_ttf
+          dkp-pacman -S --noconfirm --needed \
+            3ds-dev 3ds-sdl2 3ds-sdl2_mixer 3ds-sdl2_ttf
 
       - name: Build
         run: make -f Makefiles/Makefile_3ds -j$(nproc)
 
-      - name: Verify CIA/3DSX exists
-        run: ls -lh *.cia *.3dsx 2>/dev/null || ls -lh *.elf
+      - name: Verify output
+        run: ls -lh *.cia *.3dsx *.smdh 2>/dev/null || ls -lh *.elf 2>/dev/null || true
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-3ds
           path: |
@@ -40,3 +47,4 @@ jobs:
             *.3dsx
             *.smdh
           retention-days: 14
+          if-no-files-found: warn

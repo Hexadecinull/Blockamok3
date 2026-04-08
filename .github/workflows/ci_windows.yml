@@ -17,14 +17,11 @@ jobs:
   build-msys2-x64:
     name: Build Windows x64 (MSYS2)
     runs-on: windows-latest
-
     defaults:
       run:
         shell: msys2 {0}
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -36,31 +33,25 @@ jobs:
             mingw-w64-x86_64-SDL2_ttf
             mingw-w64-x86_64-pkgconf
             make
-
       - name: Build (normal)
         run: make -f Makefiles/Makefile_pc -j$(nproc)
-
-      - name: Verify EXE exists
+      - name: Verify EXE
         run: test -f BlockamokRemix.exe
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-windows-x64
           path: BlockamokRemix.exe
           retention-days: 14
 
+  # LOW_END on x64 = -Os size-optimised baseline (no march change — x64 toolchain can't target i686)
   build-msys2-x64-lowend:
     name: Build Windows x64 Low-End (MSYS2)
     runs-on: windows-latest
-
     defaults:
       run:
         shell: msys2 {0}
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -72,15 +63,11 @@ jobs:
             mingw-w64-x86_64-SDL2_ttf
             mingw-w64-x86_64-pkgconf
             make
-
-      - name: Build (low-end)
+      - name: Build (low-end / size-optimised)
         run: make -f Makefiles/Makefile_pc LOW_END=1 -j$(nproc)
-
-      - name: Verify EXE exists
+      - name: Verify EXE
         run: test -f BlockamokRemix.exe
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-windows-x64-lowend
           path: BlockamokRemix.exe
@@ -89,14 +76,11 @@ jobs:
   build-msys2-x86:
     name: Build Windows x86 (MSYS2)
     runs-on: windows-latest
-
     defaults:
       run:
         shell: msys2 {0}
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW32
@@ -108,15 +92,11 @@ jobs:
             mingw-w64-i686-SDL2_ttf
             mingw-w64-i686-pkgconf
             make
-
       - name: Build x86
         run: make -f Makefiles/Makefile_pc_x86 -j$(nproc)
-
-      - name: Verify EXE exists
+      - name: Verify EXE
         run: test -f BlockamokRemix.exe
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-windows-x86
           path: BlockamokRemix.exe
@@ -125,16 +105,15 @@ jobs:
   build-visualstudio:
     name: Build Windows (Visual Studio 2022)
     runs-on: windows-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache SDL2 headers
+      - name: Cache SDL2 VC libraries
         id: cache-sdl2
         uses: actions/cache@v4
         with:
           path: SDL2
-          key: sdl2-vc-2.30.x
+          key: sdl2-vc-2.30.10
 
       - name: Download SDL2 VC libraries
         if: steps.cache-sdl2.outputs.cache-hit != 'true'
@@ -143,19 +122,53 @@ jobs:
           $sdlVer   = "2.30.10"
           $mixerVer = "2.8.0"
           $ttfVer   = "2.22.0"
-          function Get-SDL($url,$dest) { Invoke-WebRequest $url -OutFile $dest; Expand-Archive $dest -DestinationPath SDL2 -Force }
+
           New-Item -ItemType Directory -Force SDL2 | Out-Null
-          Get-SDL "https://github.com/libsdl-org/SDL/releases/download/release-$sdlVer/SDL2-devel-$sdlVer-VC.zip"            "SDL2.zip"
-          Get-SDL "https://github.com/libsdl-org/SDL_mixer/releases/download/release-$mixerVer/SDL2_mixer-devel-$mixerVer-VC.zip" "SDL2_mixer.zip"
-          Get-SDL "https://github.com/libsdl-org/SDL_ttf/releases/download/release-$ttfVer/SDL2_ttf-devel-$ttfVer-VC.zip"    "SDL2_ttf.zip"
+
+          # SDL2 main
+          Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$sdlVer/SDL2-devel-$sdlVer-VC.zip" -OutFile "sdl2.zip"
+          Expand-Archive "sdl2.zip" -DestinationPath "SDL2_tmp" -Force
+          Rename-Item "SDL2_tmp\SDL2-$sdlVer" "SDL2_tmp\SDL2"
+          Move-Item "SDL2_tmp\SDL2" "SDL2\SDL2"
+          Remove-Item "SDL2_tmp" -Recurse
+
+          # SDL2_mixer
+          Invoke-WebRequest "https://github.com/libsdl-org/SDL_mixer/releases/download/release-$mixerVer/SDL2_mixer-devel-$mixerVer-VC.zip" -OutFile "mixer.zip"
+          Expand-Archive "mixer.zip" -DestinationPath "SDL2_tmp" -Force
+          Rename-Item "SDL2_tmp\SDL2_mixer-$mixerVer" "SDL2_tmp\SDL2_mixer"
+          Move-Item "SDL2_tmp\SDL2_mixer" "SDL2\SDL2_mixer"
+          Remove-Item "SDL2_tmp" -Recurse
+
+          # SDL2_ttf
+          Invoke-WebRequest "https://github.com/libsdl-org/SDL_ttf/releases/download/release-$ttfVer/SDL2_ttf-devel-$ttfVer-VC.zip" -OutFile "ttf.zip"
+          Expand-Archive "ttf.zip" -DestinationPath "SDL2_tmp" -Force
+          Rename-Item "SDL2_tmp\SDL2_ttf-$ttfVer" "SDL2_tmp\SDL2_ttf"
+          Move-Item "SDL2_tmp\SDL2_ttf" "SDL2\SDL2_ttf"
+          Remove-Item "SDL2_tmp" -Recurse
+
+          Write-Host "SDL2 layout:"
+          Get-ChildItem SDL2 -Recurse -Depth 2 | Select-Object FullName
 
       - name: Build with MSBuild
+        shell: pwsh
         run: |
           & "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe" `
-            blockamok.sln /p:Configuration=Release /p:Platform=x64 /m
+            blockamok.sln `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:IncludePath="$pwd\SDL2\SDL2\include;$pwd\SDL2\SDL2_mixer\include;$pwd\SDL2\SDL2_ttf\include" `
+            /p:LibraryPath="$pwd\SDL2\SDL2\lib\x64;$pwd\SDL2\SDL2_mixer\lib\x64;$pwd\SDL2\SDL2_ttf\lib\x64" `
+            /m
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Copy SDL2 DLLs next to EXE
+        shell: pwsh
+        run: |
+          $out = "x64\Release"
+          Copy-Item "SDL2\SDL2\lib\x64\SDL2.dll"         $out -Force
+          Copy-Item "SDL2\SDL2_mixer\lib\x64\SDL2_mixer.dll" $out -Force
+          Copy-Item "SDL2\SDL2_ttf\lib\x64\SDL2_ttf.dll" $out -Force
+
+      - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-windows-vs2022-x64
           path: |

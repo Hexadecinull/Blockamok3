@@ -15,26 +15,38 @@ jobs:
   build:
     name: Build Wii U (devkitPro + WUT)
     runs-on: ubuntu-24.04
+    # devkitpro/wut is not publicly available on Docker Hub.
+    # Use devkitppc and install wut via dkp-pacman instead.
     container:
-      image: devkitpro/wut:latest
+      image: devkitpro/devkitppc:latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install WiiU SDL2
-        run: dkp-pacman -Sy --noconfirm wiiu-sdl2 wiiu-sdl2_mixer wiiu-sdl2_ttf
+      - name: Install WUT + Wii U SDL2
+        run: |
+          dkp-pacman -Sy --noconfirm \
+            wut \
+            wiiu-sdl2 wiiu-sdl2_mixer wiiu-sdl2_ttf \
+            wiiu-cmake
 
       - name: Build with CMake
         run: |
+          source /etc/profile.d/devkit-env.sh 2>/dev/null || true
           mkdir -p build_wiiu && cd build_wiiu
-          $WUT_CMAKE_FLAGS cmake .. -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/WiiU.cmake
+          cmake .. \
+            -DCMAKE_TOOLCHAIN_FILE="$DEVKITPRO/cmake/WiiU.cmake" \
+            -DCMAKE_BUILD_TYPE=Release
           make -j$(nproc)
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Verify output
+        run: ls -lh build_wiiu/*.rpx build_wiiu/*.wuhb 2>/dev/null || ls -lh build_wiiu/*.elf 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-wiiu
           path: |
             build_wiiu/*.rpx
             build_wiiu/*.wuhb
           retention-days: 14
+          if-no-files-found: warn

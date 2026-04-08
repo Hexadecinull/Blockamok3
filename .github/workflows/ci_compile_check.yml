@@ -5,15 +5,17 @@ on:
     branches: [main, master, develop]
     paths:
       - 'src/**'
+      - 'ci/stubs/**'
+      - '.github/workflows/ci_compile_check.yml'
   pull_request:
     branches: [main, master, develop]
 
-# Quick matrix that confirms each platform-specific #define compiles cleanly
-# using the host GCC (no cross-compiler needed: we only verify parse+type-check)
+# Uses gcc -fsyntax-only with platform stub headers so we can verify every
+# #ifdef branch parses cleanly without needing cross-compilers.
 
 jobs:
   syntax-check:
-    name: Syntax / define check (${{ matrix.target }})
+    name: Syntax check (${{ matrix.target }})
     runs-on: ubuntu-24.04
 
     strategy:
@@ -24,12 +26,16 @@ jobs:
             defines: -DPC -DLINUX
           - target: ANDROID
             defines: -DANDROID -DNO_QUIT -DFORCE_DRAW_BG -DFORCE_DRAW_OVERLAY
-          - target: EMSCRIPTEN_SIM
+          - target: EMSCRIPTEN
             defines: -DPC -D__EMSCRIPTEN__
           - target: SWITCH
             defines: -DSWITCH
           - target: WII_U
             defines: -DWII_U
+          - target: WII
+            defines: -DWII
+          - target: GAMECUBE
+            defines: -DGAMECUBE
           - target: XBOX
             defines: -DXBOX
           - target: XBOX360
@@ -46,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install common dev headers
+      - name: Install SDL2 dev headers (needed for all targets)
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
@@ -56,11 +62,32 @@ jobs:
         run: |
           DEFINES="${{ matrix.defines }}"
           FAILED=0
+
+          # ci/stubs/ provides empty stub headers for platform-specific includes
+          # so gcc can syntax-check every #ifdef branch on any host.
+          STUB_DIR="ci/stubs"
+          SDL_INC=$(sdl2-config --cflags | sed 's/-D[^ ]*//g')
+
           for f in src/*.c src/audio/*.c src/fonts/*.c; do
-            gcc -fsyntax-only -w \
+            echo -n "  Checking $f ... "
+            ERR=$(gcc -fsyntax-only -w \
               $DEFINES \
-              -I/usr/include/SDL2 \
+              -I"$STUB_DIR" \
+              $SDL_INC \
               -Isrc \
-              "$f" 2>&1 | grep -v "warning:" || FAILED=1
+              "$f" 2>&1)
+            if [ $? -ne 0 ]; then
+              echo "FAILED"
+              echo "$ERR"
+              FAILED=1
+            else
+              echo "ok"
+            fi
           done
-          exit $FAILED
+
+          if [ $FAILED -ne 0 ]; then
+            echo ""
+            echo "One or more files failed syntax check for target: ${{ matrix.target }}"
+            exit 1
+          fi
+          echo "All files passed for ${{ matrix.target }}"

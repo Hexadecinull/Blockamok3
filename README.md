@@ -14,7 +14,7 @@ Blockamok³ is an extension to [Blockamok Remix](https://github.com/Mode8fx/bloc
 This version adds many platforms and bugfixes to the game such as:
 - The web (via WASM)
 - Android TV
-- SNES
+- Xbox 360 and PS3
 - And much more!
 
 ## How can I play it?
@@ -36,37 +36,26 @@ The following additional defines exist and may be needed:
 
 ## How to Compile
 
-### PC (Visual Studio)
-1. Download the latest SDL2 development libraries (VC versions):
-- [SDL2](https://github.com/libsdl-org/SDL/releases)
-- [SDL2_ttf](https://github.com/libsdl-org/SDL_ttf/releases)
-- [SDL2_mixer](https://github.com/libsdl-org/SDL_mixer/releases)
-2. Extract the above ZIP files into a folder called SDL2, which should be located in the Blockamok directory.
-  
-### PC (MSYS2)
-Install MSYS2 and the latest SDL2 development libraries (along with mixer and TTF), open MSYS2 MINGW64 (64-bit) or MSYS2 MINGW32 (32-bit), and run `make -f Makefiles/Makefile_pc` (or `make -f Makefiles/Makefile_pc_x86` for 32-bit).
-3. From there, use the Visual Studio project file from the repo with Visual Studio 2022.
+Detailed build instructions for every supported platform are in **[BUILDING.md](BUILDING.md)**.
 
-### Switch
-Install devkitPro and switch-portlibs (which includes SDL2 for Switch), then run `make -f Makefiles/Makefile_switch`.
+Quick reference:
 
-### Wii U
-Install devkitPro, Wii U Toolkit, and SDL2 for Wii U, then build with CMake. I've included a `make_wii_u.sh` file for convenience once you have everything installed.
-
-### Wii
-Install devkitPro and SDL2 for Wii, then run `make -f Makefiles/Makefile_wii`.
-
-### GameCube
-Install devkitPro and SDL2 for GameCube, then run `make -f Makefiles/Makefile_gc`.
-
-### 3DS
-Install devkitPro and SDL2 for 3DS, then run `make -f Makefiles/Makefile_3ds`.
-
-### Vita
-Install VitaSDK, then build with CMake. I've included a `make_vita.sh` file for convenience once you have everything installed.
-
-### PSP
-Install [the PSPDEV toolchain](https://pspdev.github.io/), which should also come with SDL2, SDL2_ttf, and SDL2_mixer (Linux or WSL is strongly recommended), then run `make -f Makefiles/Makefile_psp`.
+| Platform | Command |
+|---|---|
+| Linux | `make -f Makefiles/Makefile_linux` |
+| Windows (MSYS2 x64) | `make -f Makefiles/Makefile_pc` |
+| Windows (MSYS2 x86) | `make -f Makefiles/Makefile_pc_x86` |
+| Web (Emscripten) | `make -f Makefiles/Makefile_wasm` |
+| Nintendo Switch | `make -f Makefiles/Makefile_switch` |
+| Nintendo Wii U | `bash Makefiles/make_wii_u.sh` |
+| Nintendo Wii | `make -f Makefiles/Makefile_wii` |
+| Nintendo GameCube | `make -f Makefiles/Makefile_gc` |
+| Nintendo 3DS | `make -f Makefiles/Makefile_3ds` |
+| PlayStation Vita | `bash Makefiles/make_vita.sh` |
+| PSP | `make -f Makefiles/Makefile_psp` |
+| PS3 | `make -f Makefiles/Makefile_ps3` |
+| Xbox (Original) | `make -f Makefiles/Makefile_xbox` |
+| Xbox 360 | `make -f Makefiles/Makefile_xbox360` |
 
 ## License
 

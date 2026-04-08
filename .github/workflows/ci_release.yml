@@ -9,94 +9,139 @@ permissions:
   contents: write
 
 jobs:
-  # ── Native desktop ──────────────────────────────────────────────────────────
   linux-x64:
     name: Linux x64
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends gcc make libsdl2-dev libsdl2-mixer-dev libsdl2-ttf-dev libmikmod-dev
-      - run: make -f Makefiles/Makefile_linux -j$(nproc)
-      - run: mv blockamokremix blockamokremix-linux-x64
+      - name: Install deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            gcc make libsdl2-dev libsdl2-mixer-dev libsdl2-ttf-dev libmikmod-dev
+      - name: Build
+        run: make -f Makefiles/Makefile_linux -j$(nproc)
+      - name: Rename
+        run: mv blockamokremix blockamokremix-linux-x64
       - uses: actions/upload-artifact@v4
-        with: { name: linux-x64, path: blockamokremix-linux-x64 }
+        with:
+          name: linux-x64
+          path: blockamokremix-linux-x64
 
   windows-x64:
     name: Windows x64
     runs-on: windows-latest
-    defaults: { run: { shell: msys2 {0} } }
+    defaults:
+      run:
+        shell: msys2 {0}
     steps:
       - uses: actions/checkout@v4
       - uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
-          install: mingw-w64-x86_64-gcc mingw-w64-x86_64-SDL2 mingw-w64-x86_64-SDL2_mixer mingw-w64-x86_64-SDL2_ttf mingw-w64-x86_64-pkgconf make
-      - run: make -f Makefiles/Makefile_pc -j$(nproc)
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-SDL2_mixer
+            mingw-w64-x86_64-SDL2_ttf
+            mingw-w64-x86_64-pkgconf
+            make
+      - name: Build
+        run: make -f Makefiles/Makefile_pc -j$(nproc)
       - uses: actions/upload-artifact@v4
-        with: { name: windows-x64, path: BlockamokRemix.exe }
+        with:
+          name: windows-x64
+          path: BlockamokRemix.exe
 
-  # ── Web ─────────────────────────────────────────────────────────────────────
   web:
     name: Web (WASM)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: mymindstorm/setup-emsdk@v14
-        with: { version: '3.1.59' }
-      - run: make -f Makefiles/Makefile_wasm -j$(nproc)
+        with:
+          version: '3.1.59'
+      - name: Build
+        run: make -f Makefiles/Makefile_wasm -j$(nproc)
       - uses: actions/upload-artifact@v4
-        with: { name: web, path: web/ }
+        with:
+          name: web
+          path: web/
 
-  # ── Android APK ─────────────────────────────────────────────────────────────
   android:
     name: Android APK
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: '17' }
+        with:
+          distribution: temurin
+          java-version: '17'
       - uses: android-actions/setup-android@v3
-      - run: echo "y" | sdkmanager --install "ndk;26.3.11579264" "platforms;android-36"
-      - name: Stub SDL2 sources (CI only – replace with real SDL2 for production)
+      - name: Install NDK
+        run: echo "y" | sdkmanager --install "ndk;26.3.11579264" "platforms;android-36"
+      - name: Prepare jni dirs
         run: |
-          mkdir -p android/app/src/main/jni/SDL2/{include,src}
-          echo "// stub" > android/app/src/main/jni/SDL2/Android.mk
-      - name: Sync C sources
+          mkdir -p android/app/src/main/jni
+          mkdir -p android/app/src/main/c/audio
+          mkdir -p android/app/src/main/c/fonts
+      - name: Download SDL2 for Android
         run: |
-          cp src/*.c  android/app/src/main/c/  2>/dev/null || true
-          cp src/*.h  android/app/src/main/c/  2>/dev/null || true
-          cp src/audio/*.{c,h} android/app/src/main/c/audio/ 2>/dev/null || true
-          cp src/fonts/*.{c,h} android/app/src/main/c/fonts/ 2>/dev/null || true
+          JNI="android/app/src/main/jni"
+          curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-2.30.10/SDL2-2.30.10.tar.gz" \
+            | tar -xz --strip-components=1 -C "$JNI" --one-top-level=SDL2
+          curl -sL "https://github.com/libsdl-org/SDL_mixer/releases/download/release-2.8.0/SDL2_mixer-2.8.0.tar.gz" \
+            | tar -xz --strip-components=1 -C "$JNI" --one-top-level=SDL2_mixer
+          curl -sL "https://github.com/libsdl-org/SDL_ttf/releases/download/release-2.22.0/SDL2_ttf-2.22.0.tar.gz" \
+            | tar -xz --strip-components=1 -C "$JNI" --one-top-level=SDL2_ttf
+      - name: Copy sources
+        run: |
+          cp src/*.{c,h}        android/app/src/main/c/       2>/dev/null || true
+          cp src/audio/*.{c,h}  android/app/src/main/c/audio/ 2>/dev/null || true
+          cp src/fonts/*.{c,h}  android/app/src/main/c/fonts/ 2>/dev/null || true
       - name: Build release APK
-        run: cd android && ./gradlew assembleRelease --no-daemon
+        run: |
+          chmod +x android/gradlew
+          cd android && ./gradlew assembleRelease --no-daemon
       - uses: actions/upload-artifact@v4
-        with: { name: android-release, path: android/app/build/outputs/apk/release/*.apk }
+        with:
+          name: android-release
+          path: android/app/build/outputs/apk/release/*.apk
 
-  # ── Nintendo Switch ──────────────────────────────────────────────────────────
   switch:
     name: Nintendo Switch
     runs-on: ubuntu-24.04
-    container: { image: devkitpro/devkita64:latest }
+    container:
+      image: devkitpro/devkita64:latest
     steps:
       - uses: actions/checkout@v4
-      - run: dkp-pacman -Sy --noconfirm switch-portlibs switch-sdl2 switch-sdl2_mixer switch-sdl2_ttf
-      - run: make -f Makefiles/Makefile_switch -j$(nproc)
+      - name: Install portlibs
+        run: dkp-pacman -Sy --noconfirm switch-portlibs switch-sdl2 switch-sdl2_mixer switch-sdl2_ttf
+      - name: Build
+        run: make -f Makefiles/Makefile_switch -j$(nproc)
       - uses: actions/upload-artifact@v4
-        with: { name: switch, path: "*.nro" }
+        with:
+          name: switch
+          path: '*.nro'
+          if-no-files-found: warn
 
-  # ── GitHub Release ───────────────────────────────────────────────────────────
-  release:
+  create-release:
     name: Create GitHub Release
     needs: [linux-x64, windows-x64, web, android, switch]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
-        with: { path: dist }
+        with:
+          path: dist
 
-      - name: Package web build
-        run: cd dist/web && zip -r ../blockamokremix-web.zip .
+      - name: Package web build as zip
+        run: |
+          cd dist/web && zip -r ../blockamokremix-web.zip . && cd ../..
 
-      - name: Create release
+      - name: List release assets
+        run: find dist -type f | sort
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true

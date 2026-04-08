@@ -10,6 +10,7 @@ on:
       - '.github/workflows/ci_web.yml'
   pull_request:
     branches: [main, master, develop]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -32,25 +33,28 @@ jobs:
         run: make -f Makefiles/Makefile_wasm -j$(nproc)
 
       - name: Verify output files
-        # Emscripten names outputs after the target (index.html → index.js, index.wasm, index.data)
         run: |
           test -f web/index.html  && echo "✅ index.html"  || (echo "❌ index.html missing";  exit 1)
           test -f web/index.js    && echo "✅ index.js"    || (echo "❌ index.js missing";    exit 1)
           test -f web/index.wasm  && echo "✅ index.wasm"  || (echo "❌ index.wasm missing";  exit 1)
           ls -lh web/
 
-      - name: Upload web artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-web
           path: web/
           retention-days: 30
 
+  # Deploy to GitHub Pages on push to main/master.
+  # Requires: repository Settings → Pages → Source → GitHub Actions.
+  # If Pages is not yet enabled, this job is skipped gracefully.
   deploy-pages:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-24.04
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    # Skip this entire job if Pages isn't configured rather than failing CI
+    continue-on-error: true
 
     permissions:
       contents: read
@@ -70,6 +74,9 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
+        with:
+          # Auto-enable Pages if it isn't already configured
+          enablement: true
 
       - name: Upload to Pages
         uses: actions/upload-pages-artifact@v3

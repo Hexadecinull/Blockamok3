@@ -7,6 +7,7 @@ on:
     branches: [main, master, develop]
   schedule:
     - cron: '0 8 * * 1'
+  workflow_dispatch:
 
 jobs:
   analyze:
@@ -27,7 +28,7 @@ jobs:
             gcc make libsdl2-dev libsdl2-mixer-dev libsdl2-ttf-dev libmikmod-dev
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: c
           queries: security-and-quality
@@ -36,10 +37,9 @@ jobs:
         run: make -f Makefiles/Makefile_linux -j$(nproc)
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:c"
-        # Advanced Security must be enabled on the repo for upload to succeed.
-        # On public repos this is free; private repos need a GHAS licence.
-        # Results are still generated locally even if upload fails.
+        # Advanced Security must be enabled (free on public repos;
+        # requires GHAS licence on private repos).
         continue-on-error: true

@@ -10,22 +10,27 @@ on:
       - '.github/workflows/ci_wiiu.yml'
   pull_request:
     branches: [main, master, develop]
+  workflow_dispatch:
 
 jobs:
   build:
     name: Build Wii U (devkitPro + WUT)
     runs-on: ubuntu-24.04
-    # devkitpro/wut is not publicly available on Docker Hub.
-    # Use devkitppc and install wut via dkp-pacman instead.
     container:
       image: devkitpro/devkitppc:latest
 
     steps:
       - uses: actions/checkout@v4
 
+      - name: Sync dkp-pacman databases with retry
+        run: |
+          dkp-pacman -Sy --noconfirm 2>/dev/null || \
+          (sleep 15 && dkp-pacman -Sy --noconfirm 2>/dev/null) || \
+          (sleep 30 && dkp-pacman -Sy --noconfirm)
+
       - name: Install WUT + Wii U SDL2
         run: |
-          dkp-pacman -Sy --noconfirm \
+          dkp-pacman -S --noconfirm --needed \
             wut \
             wiiu-sdl2 wiiu-sdl2_mixer wiiu-sdl2_ttf \
             wiiu-cmake

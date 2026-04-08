@@ -9,9 +9,7 @@ on:
       - '.github/workflows/ci_compile_check.yml'
   pull_request:
     branches: [main, master, develop]
-
-# Uses gcc -fsyntax-only with platform stub headers so we can verify every
-# #ifdef branch parses cleanly without needing cross-compilers.
+  workflow_dispatch:
 
 jobs:
   syntax-check:
@@ -52,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install SDL2 dev headers (needed for all targets)
+      - name: Install SDL2 dev headers
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
@@ -62,32 +60,28 @@ jobs:
         run: |
           DEFINES="${{ matrix.defines }}"
           FAILED=0
-
-          # ci/stubs/ provides empty stub headers for platform-specific includes
-          # so gcc can syntax-check every #ifdef branch on any host.
           STUB_DIR="ci/stubs"
           SDL_INC=$(sdl2-config --cflags | sed 's/-D[^ ]*//g')
 
           for f in src/*.c src/audio/*.c src/fonts/*.c; do
             echo -n "  Checking $f ... "
-            ERR=$(gcc -fsyntax-only -w \
-              $DEFINES \
-              -I"$STUB_DIR" \
-              $SDL_INC \
-              -Isrc \
-              "$f" 2>&1)
-            if [ $? -ne 0 ]; then
-              echo "FAILED"
-              echo "$ERR"
-              FAILED=1
-            else
+            if gcc -fsyntax-only -w \
+                $DEFINES \
+                -I"$STUB_DIR" \
+                $SDL_INC \
+                -Isrc \
+                "$f" 2>/tmp/gcc_out; then
               echo "ok"
+            else
+              echo "FAILED"
+              cat /tmp/gcc_out
+              FAILED=1
             fi
           done
 
           if [ $FAILED -ne 0 ]; then
             echo ""
-            echo "One or more files failed syntax check for target: ${{ matrix.target }}"
+            echo "One or more files failed syntax check for: ${{ matrix.target }}"
             exit 1
           fi
           echo "All files passed for ${{ matrix.target }}"

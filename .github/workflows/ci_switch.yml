@@ -9,6 +9,7 @@ on:
       - '.github/workflows/ci_switch.yml'
   pull_request:
     branches: [main, master, develop]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -20,21 +21,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install switch-portlibs (SDL2 etc.)
+      - name: Install switch-portlibs
         run: |
-          dkp-pacman -Sy --noconfirm switch-portlibs switch-sdl2 switch-sdl2_mixer switch-sdl2_ttf
+          dkp-pacman -Sy --noconfirm \
+            switch-portlibs switch-sdl2 switch-sdl2_mixer switch-sdl2_ttf
 
       - name: Build
         run: make -f Makefiles/Makefile_switch -j$(nproc)
 
-      - name: Verify NRO exists
+      - name: Verify output
         run: ls -lh *.nro 2>/dev/null || ls -lh *.elf
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-switch
           path: |
             *.nro
             *.nacp
           retention-days: 14
+          if-no-files-found: warn

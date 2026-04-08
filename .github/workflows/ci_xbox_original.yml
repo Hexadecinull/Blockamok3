@@ -9,28 +9,32 @@ on:
       - '.github/workflows/ci_xbox_original.yml'
   pull_request:
     branches: [main, master, develop]
+  workflow_dispatch:
 
 jobs:
   build:
     name: Build Original Xbox (nxdk)
     runs-on: ubuntu-24.04
-    # Use the official nxdk container — it ships a pre-built LLVM/Clang
-    # toolchain (nxdk-cc) required to build for the original Xbox.
     container:
       image: ghcr.io/xboxdev/nxdk:latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify nxdk toolchain
-        run: nxdk-cc --version || clang --version
+      - name: Verify nxdk toolchain and locate NXDK_DIR
+        run: |
+          # The container sets NXDK_DIR automatically; export it for make
+          echo "NXDK_DIR=${NXDK_DIR:-/nxdk}" >> $GITHUB_ENV
+          nxdk-cc --version 2>/dev/null || clang --version
+          ls "${NXDK_DIR:-/nxdk}/Makefile" 2>/dev/null \
+            && echo "NXDK found at ${NXDK_DIR:-/nxdk}" \
+            || (echo "Searching for nxdk Makefile..." && find / -name "nxdk.mk" -o -name "Makefile" -path "*/nxdk/*" 2>/dev/null | head -5)
 
       - name: Build Blockamok for OG Xbox
-        run: |
-          NXDK_DIR=/nxdk make -f Makefiles/Makefile_xbox -j$(nproc)
+        run: make -f Makefiles/Makefile_xbox NXDK_DIR="$NXDK_DIR" -j$(nproc)
 
-      - name: Verify XBE / ISO
-        run: ls -lh *.xbe *.iso BlockamokRemix.* 2>/dev/null || true
+      - name: Verify output
+        run: ls -lh *.xbe *.iso 2>/dev/null || true
 
       - uses: actions/upload-artifact@v4
         with:

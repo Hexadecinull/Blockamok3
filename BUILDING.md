@@ -3,6 +3,8 @@
 This document covers how to compile Blockamok³ for every supported platform.
 For a list of tested hardware and known performance characteristics, see [COMPATIBILITY.md](COMPATIBILITY.md).
 
+> **How to read the "Compiled on" field:** This is the host machine OS you need to run the compiler/toolchain on. Most cross-toolchains run on Linux; Windows-native toolchains are noted where applicable.
+
 ---
 
 ## Table of Contents
@@ -42,6 +44,8 @@ These preprocessor defines are available across all platforms and affect renderi
 
 ## PC / Linux
 
+> **Compiled on:** Linux
+
 **Requirements:**
 - GCC or Clang
 - SDL2, SDL2_mixer, SDL2_ttf, libmikmod (dev packages)
@@ -67,6 +71,8 @@ make -f Makefiles/Makefile_linux LOW_END=1
 
 ## PC / Windows (MSYS2)
 
+> **Compiled on:** Windows (via MSYS2 shell)
+
 **Requirements:**
 - [MSYS2](https://www.msys2.org/)
 
@@ -85,7 +91,7 @@ make -f Makefiles/Makefile_pc
 make -f Makefiles/Makefile_pc LOW_END=1
 ```
 
-For a **32-bit (x86)** build, use the **MSYS2 MinGW 32-bit** shell:
+For a **32-bit (x86)** build, open the **MSYS2 MinGW 32-bit** shell:
 
 ```bash
 pacman -S mingw-w64-i686-gcc mingw-w64-i686-SDL2 \
@@ -100,6 +106,8 @@ Output: `BlockamokRemix.exe` in the project root.
 ---
 
 ## PC / Windows (Visual Studio 2022)
+
+> **Compiled on:** Windows (Visual Studio 2022)
 
 **Requirements:**
 - Visual Studio 2022 (Desktop C++ workload)
@@ -118,7 +126,7 @@ Download the **VC** (not MinGW) zip files from the SDL releases pages:
 **Step 2 — Extract into the required folder structure**
 
 Create a folder called `SDL2` **inside the project root** (`Blockamok3/SDL2/`).
-Extract each zip so the layout matches exactly:
+Each zip contains a single top-level folder (e.g. `SDL2-2.30.10/`). Extract each one and rename that folder so the layout looks like:
 
 ```
 Blockamok3/
@@ -140,27 +148,26 @@ Blockamok3/
             └── x86/
 ```
 
-> **Tip:** Each SDL2 VC zip extracts as e.g. `SDL2-2.30.10/`. Just rename that folder to `SDL2`, `SDL2_mixer`, or `SDL2_ttf` respectively before moving it into the `SDL2/` parent.
-
 **Step 3 — Build**
 
-Open `blockamok.sln` in Visual Studio 2022 and build the **Release | x64** configuration,
-or from a Developer Command Prompt:
+Open `blockamok.sln` in Visual Studio 2022 and build the **Release | x64** configuration, or from a Developer Command Prompt:
 
 ```bat
 MSBuild blockamok.sln /p:Configuration=Release /p:Platform=x64
 ```
 
-The EXE is placed in `x64\Release\BlockamokRemix.exe`.
-Copy the SDL2 DLLs from `SDL2\SDL2\lib\x64\`, `SDL2\SDL2_mixer\lib\x64\`, and `SDL2\SDL2_ttf\lib\x64\` next to the EXE before distributing.
+The EXE is at `x64\Release\BlockamokRemix.exe`.
+Copy the three SDL2 DLLs from `SDL2\SDL2\lib\x64\`, `SDL2\SDL2_mixer\lib\x64\`, and `SDL2\SDL2_ttf\lib\x64\` next to the EXE before distributing.
 
 ---
 
 ## macOS
 
+> **Compiled on:** macOS
+
 **Requirements:**
 - Xcode command-line tools (`xcode-select --install`)
-- SDL2, SDL2_mixer, SDL2_ttf via Homebrew
+- Homebrew
 
 ```bash
 brew install sdl2 sdl2_mixer sdl2_ttf
@@ -174,6 +181,8 @@ Output: `BlockamokRemix` in the project root.
 
 ## Web (Emscripten / WebAssembly)
 
+> **Compiled on:** Linux, macOS, or Windows (with MSYS2 or WSL)
+
 **Requirements:**
 - [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) ≥ 3.1.59
 
@@ -185,33 +194,38 @@ make -f Makefiles/Makefile_wasm -j$(nproc)
 ```
 
 Output is written to the `web/` directory:
-- `web/index.html` — launcher page (open this in a browser)
-- `web/index.js` — Emscripten JS glue
-- `web/index.wasm` — compiled game
-- `web/index.data` — preloaded asset bundle (font)
+
+| File | Description |
+|---|---|
+| `web/index.html` | Launcher page — open this in a browser |
+| `web/index.js` | Emscripten JavaScript glue |
+| `web/index.wasm` | Compiled game binary |
+| `web/index.data` | Preloaded asset bundle (font) |
 
 To run locally (browsers block `file://` WASM loading):
 ```bash
 cd web && python3 -m http.server 8080
-# Open http://localhost:8080 in your browser
+# Open http://localhost:8080
 ```
 
-The CI automatically deploys `web/` to **GitHub Pages** on every push to `main`.
+The CI automatically deploys `web/` to **GitHub Pages** on every push to `main` (requires Pages to be enabled in the repository settings: Settings → Pages → Source → GitHub Actions).
 
 ---
 
 ## Android
 
+> **Compiled on:** Linux, macOS, or Windows — anywhere the Android SDK runs
+
 **Requirements:**
 - Android Studio **or** the Android command-line tools
 - Android NDK r26 (`ndk;26.3.11579264`)
-- Android SDK with platform `android-36`
+- Android SDK Platform `android-36`
 - JDK 17
-- SDL2, SDL2_mixer, SDL2_ttf Android sources (downloaded automatically by the build)
+- Gradle 8.7+
 
 **Step 1 — Get SDL2 Android sources**
 
-Download and extract the following source archives into `android/app/src/main/jni/`:
+Download and extract these source archives into `android/app/src/main/jni/` (creating a subfolder for each):
 
 | Library | Version | URL |
 |---|---|---|
@@ -219,7 +233,7 @@ Download and extract the following source archives into `android/app/src/main/jn
 | SDL2_mixer | 2.8.0 | https://github.com/libsdl-org/SDL_mixer/releases |
 | SDL2_ttf | 2.22.0 | https://github.com/libsdl-org/SDL_ttf/releases |
 
-The resulting layout should be:
+The resulting layout:
 ```
 android/app/src/main/jni/
 ├── SDL2/
@@ -235,49 +249,50 @@ cp src/audio/*.{c,h}  android/app/src/main/c/audio/
 cp src/fonts/*.{c,h}  android/app/src/main/c/fonts/
 ```
 
-**Step 3 — Build**
+**Step 3 — Generate Gradle wrapper and build**
 
 ```bash
 cd android
+gradle wrapper --gradle-version 8.7
 ./gradlew assembleDebug     # debug APK
 ./gradlew assembleRelease   # release APK (requires signing config)
 ```
 
 APK output: `android/app/build/outputs/apk/`
 
-**SDK versions:**
-- `minSdk`: **19** (Android 4.4 KitKat and above)
-- `targetSdk`: **36** (Android 16)
-- All four ABI targets are built: `armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64`
+**SDK versions:** `minSdk 19` (Android 4.4+) · `targetSdk 36` (Android 16) · ABIs: `armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64`
 
-**Orientation:** The app is locked to **landscape** via `android:screenOrientation="landscape"` in the manifest. If you ever see portrait mode on first launch, this is caused by a missing or wrong `screenOrientation` attribute — the current manifest is correct.
+**Orientation:** Locked to **landscape** via `android:screenOrientation="landscape"` in the manifest. This is the fix for the portrait-mode bug present in earlier versions.
 
 ---
 
 ## Nintendo Switch
 
+> **Compiled on:** Linux, macOS, or Windows (devkitPro supports all three)
+
 **Requirements:**
 - [devkitPro](https://devkitpro.org/wiki/Getting_Started) with `devkitA64`
-- `switch-portlibs` package group (includes SDL2 for Switch)
+- `switch-portlibs` package group
 
 ```bash
-# Install via dkp-pacman
 dkp-pacman -S switch-portlibs switch-sdl2 switch-sdl2_mixer switch-sdl2_ttf
 
 make -f Makefiles/Makefile_switch
 ```
 
-Output: `BlockamokRemix.nro` (sideloadable via homebrew menu).
+Output: `BlockamokRemix.nro` — place in `switch/BlockamokRemix/` on your SD card and launch via the homebrew menu.
 
-> **Emulator note:** When running under **Eden** (yuzu-android fork), set the CPU backend to **Dynarmic (JIT)** instead of NCE. Eden's NCE patcher crashes on this NRO due to a bug in Eden itself. The NRO works correctly on hardware and in Ryujinx.
+> **Emulator note (Eden/yuzu-android):** Set CPU backend to **Dynarmic (JIT)** instead of NCE. Eden's NCE patcher crashes on this NRO due to a bug in Eden itself — the NRO is valid and works correctly on hardware and in Ryujinx.
 
 ---
 
 ## Nintendo Wii U
 
+> **Compiled on:** Linux, macOS, or Windows (devkitPro supports all three)
+
 **Requirements:**
 - [devkitPro](https://devkitpro.org/wiki/Getting_Started) with `devkitPPC`
-- `wut` (Wii U Toolkit), `wiiu-sdl2`, `wiiu-sdl2_mixer`, `wiiu-sdl2_ttf`
+- `wut`, `wiiu-sdl2`, `wiiu-sdl2_mixer`, `wiiu-sdl2_ttf`, `wiiu-cmake`
 
 ```bash
 dkp-pacman -S wut wiiu-sdl2 wiiu-sdl2_mixer wiiu-sdl2_ttf wiiu-cmake
@@ -287,11 +302,13 @@ cmake .. -DCMAKE_TOOLCHAIN_FILE="$DEVKITPRO/cmake/WiiU.cmake" -DCMAKE_BUILD_TYPE
 make -j$(nproc)
 ```
 
-A convenience script `Makefiles/make_wii_u.sh` is included that runs these steps automatically once the prerequisites are installed.
+A convenience script `Makefiles/make_wii_u.sh` runs these steps automatically once the prerequisites are installed.
 
 ---
 
 ## Nintendo Wii
+
+> **Compiled on:** Linux, macOS, or Windows (devkitPro supports all three)
 
 **Requirements:**
 - [devkitPro](https://devkitpro.org/wiki/Getting_Started) with `devkitPPC`
@@ -303,11 +320,13 @@ dkp-pacman -S wii-sdl2 wii-sdl2_mixer wii-sdl2_ttf libfat-ogc
 make -f Makefiles/Makefile_wii
 ```
 
-Place the output `.dol` in `sd:/apps/BlockamokRemix/boot.dol` on your SD card.
+Place the output `.dol` at `sd:/apps/BlockamokRemix/boot.dol` on your SD card. Save data is stored at `sd:/apps/BlockamokRemix/`.
 
 ---
 
 ## Nintendo GameCube
+
+> **Compiled on:** Linux, macOS, or Windows (devkitPro supports all three)
 
 **Requirements:**
 - [devkitPro](https://devkitpro.org/wiki/Getting_Started) with `devkitPPC`
@@ -319,11 +338,13 @@ dkp-pacman -S gamecube-sdl2 gamecube-sdl2_mixer gamecube-sdl2_ttf libfat-ogc
 make -f Makefiles/Makefile_gc
 ```
 
-The game auto-detects SD cards on slots A, B, and C for save data.
+Save data is stored on an SD card; the game tries slots A, B, and C automatically.
 
 ---
 
 ## Nintendo 3DS
+
+> **Compiled on:** Linux, macOS, or Windows (devkitPro supports all three)
 
 **Requirements:**
 - [devkitPro](https://devkitpro.org/wiki/Getting_Started) with `devkitARM`
@@ -335,22 +356,25 @@ dkp-pacman -S 3ds-dev 3ds-sdl2 3ds-sdl2_mixer 3ds-sdl2_ttf
 make -f Makefiles/Makefile_3ds
 ```
 
-Outputs a `.cia` (installable) and a `.3dsx` (Homebrew Launcher).
+Outputs a `.cia` (installable via FBI) and a `.3dsx` (Homebrew Launcher). The `.cia` is recommended for regular use.
 
-**New 3DS:** Recommended clock speed is the upgraded 804 MHz mode, toggled via the in-game debug cheat (see credits screen). The `useNew3DSClockSpeed` flag in `main.c` controls this.
+**New 3DS:** The game can enable the 804 MHz clock boost via an in-game toggle in the credits screen. The Old 3DS runs at reduced speed but is still playable.
 
 ---
 
 ## PlayStation Vita
+
+> **Compiled on:** Linux (strongly recommended; macOS works; Windows via WSL)
 
 **Requirements:**
 - [VitaSDK](https://vitasdk.org/) installed to `/usr/local/vitasdk`
 - SDL2, SDL2_mixer, SDL2_ttf installed via [vdpm](https://github.com/vitasdk/vdpm)
 
 ```bash
-# Install vdpm packages (only needed once)
 export VITASDK=/usr/local/vitasdk
 export PATH=$VITASDK/bin:$PATH
+
+# Install SDL2 packages (only needed once)
 vdpm SDL2
 vdpm SDL2_mixer
 vdpm SDL2_ttf
@@ -359,68 +383,70 @@ vdpm SDL2_ttf
 bash Makefiles/make_vita.sh
 ```
 
-Output: `BlockamokRemix.vpk` — installable via VitaShell.
-
-Save data is stored at `ux0:data/BlockamokRemix/`.
+Output: `BlockamokRemix.vpk` — install via VitaShell. Save data is stored at `ux0:data/BlockamokRemix/`.
 
 ---
 
 ## PlayStation Portable (PSP)
 
+> **Compiled on:** Linux (strongly recommended; Windows via WSL)
+
 **Requirements:**
-- [pspdev toolchain](https://pspdev.github.io/) (Linux or WSL strongly recommended)
-- SDL2, SDL2_mixer, SDL2_ttf (included with pspdev or installable via `psp-pacman`)
+- [pspdev toolchain](https://pspdev.github.io/)
+- SDL2, SDL2_mixer, SDL2_ttf (included with pspdev or via `psp-pacman`)
 
 ```bash
-# Install SDL2 (if not already present in your pspdev install)
+# Install SDL2 if not already present
 psp-pacman -S psp-sdl2 psp-sdl2_mixer psp-sdl2_ttf
 
-# Set pkg-config path so make can find the SDL2 flags
+# Set pkg-config path so make can find SDL2 flags
 export PKG_CONFIG_PATH=/usr/local/pspdev/psp/lib/pkgconfig
 
 make -f Makefiles/Makefile_psp
 ```
 
-Output: `EBOOT.PBP`. Place it at `PSP/GAME/BlockamokRemix/EBOOT.PBP` on your Memory Stick.
+Output: `EBOOT.PBP` — place at `PSP/GAME/BlockamokRemix/EBOOT.PBP` on your Memory Stick.
 
-> **Overclock:** The PSP build benefits significantly from running at 333 MHz. The game does not set the CPU clock itself; use a plugin (e.g. `overclock.prx`) or enable overclock in the launcher if your CFW supports it.
+> **Overclock:** The PSP benefits significantly from running at 333 MHz. The game does not set the CPU clock itself; use a plugin such as `overclock.prx` or enable it in your CFW launcher.
 
 ---
 
 ## PlayStation 3
 
+> **Compiled on:** Linux
+
 **Requirements:**
-- [ps3toolchain](https://github.com/ps3dev/ps3toolchain) + PSL1GHT, **or** the [`ps3dev/ps3dev` Docker image](https://hub.docker.com/r/ps3dev/ps3dev) (much faster)
-- SDL2 for PS3 (included in ps3toolchain)
+- [ps3toolchain](https://github.com/ps3dev/ps3toolchain) + PSL1GHT
 
-**Using Docker (recommended):**
-```bash
-docker run --rm -v "$PWD:/build" -w /build ps3dev/ps3dev:latest \
-  make -f Makefiles/Makefile_ps3 -j$(nproc)
-```
-
-**Manual (after building ps3toolchain):**
+**Build the toolchain** (one-time, ~35–45 minutes):
 ```bash
 export PS3DEV=/usr/local/ps3dev
 export PSL1GHT=$PS3DEV/psl1ght
-export PATH=$PS3DEV/bin:$PS3DEV/ppu/bin:$PATH
 
+git clone --depth=1 https://github.com/ps3dev/ps3toolchain.git /tmp/ps3toolchain
+cd /tmp/ps3toolchain
+INSTALL_PREFIX=$PS3DEV bash toolchain.sh
+```
+
+**Build the game:**
+```bash
+export PATH=$PS3DEV/bin:$PS3DEV/ppu/bin:$PATH
 make -f Makefiles/Makefile_ps3
 ```
 
-Output: `BlockamokRemix.self` — run via a CFW or HEN-enabled PS3 using webMAN or similar.
+Output: `BlockamokRemix.self` — run on a CFW or HEN-enabled PS3 via webMAN, multiMAN, or similar homebrew launcher.
 
 ---
 
 ## Xbox (Original)
 
-**Requirements:**
-- [nxdk](https://github.com/XboxDev/nxdk) with its bundled LLVM/Clang toolchain, **or** the [`ghcr.io/xboxdev/nxdk` Docker image](https://github.com/XboxDev/nxdk/pkgs/container/nxdk) (recommended)
+> **Compiled on:** Linux (via the nxdk Docker container or installed nxdk)
 
-**Using Docker (recommended):**
+**Recommended — Docker:**
 ```bash
-docker run --rm -v "$PWD:/build" -w /build ghcr.io/xboxdev/nxdk:latest \
-  make -f Makefiles/Makefile_xbox NXDK_DIR=/nxdk -j$(nproc)
+docker run --rm -v "$PWD:/build" -w /build \
+  ghcr.io/xboxdev/nxdk:latest \
+  make -f Makefiles/Makefile_xbox NXDK_DIR="$NXDK_DIR" -j$(nproc)
 ```
 
 **Manual:**
@@ -434,18 +460,20 @@ cd /path/to/Blockamok3
 NXDK_DIR=~/nxdk make -f Makefiles/Makefile_xbox -j$(nproc)
 ```
 
-Output: `BlockamokRemix.xbe` + `BlockamokRemix.iso` — run on an original Xbox with a modchip or soft-mod, or in the **xemu** emulator.
+Output: `BlockamokRemix.xbe` — run on an original Xbox with a modchip or softmod, or in the **xemu** emulator.
 
 ---
 
 ## Xbox 360
+
+> **Compiled on:** Linux
 
 **Requirements:**
 - [libxenon](https://github.com/Free60Project/libxenon) cross-compiler (`powerpc64-xenon-elf-gcc`)
 
 **Build the toolchain** (one-time, ~25–35 minutes):
 ```bash
-PREFIX=/usr/local/xenon
+export PREFIX=/usr/local/xenon
 git clone --depth=1 https://github.com/Free60Project/libxenon.git /tmp/libxenon
 cd /tmp/libxenon
 CROSS_INSTALL_PREFIX=$PREFIX make -j$(nproc) toolchain
@@ -458,16 +486,31 @@ export PATH=$PREFIX/bin:$PATH
 XENON_DIR=/usr/local/xenon make -f Makefiles/Makefile_xbox360 -j$(nproc)
 ```
 
-Output: `BlockamokRemix.xex` — run on an RGH/JTAG Xbox 360 using Freestyle Dash or Aurora, or in the **Xenia** emulator.
+Output: `BlockamokRemix.xex` — run on an RGH/JTAG Xbox 360 via Freestyle Dash or Aurora, or in the **Xenia** emulator.
 
 ---
 
 ## RG35XX / Handheld Linux
 
-A convenience script is provided for the Anbernic RG35XX and similar Linux handhelds running GarlicOS or compatible firmware:
+> **Compiled on:** Linux (cross-compiled for ARM using the GarlicOS/Buildroot SDK)
 
+The RG35XX and compatible Anbernic handhelds (RG35XX-H, RG35XX+, etc.) run a custom ARM Linux. A Buildroot-based cross-toolchain is available from the [GarlicOS buildroot repository](https://github.com/GarlicOS/buildroot/releases).
+
+**Step 1 — Get the SDK:**
 ```bash
+SDK_URL="https://github.com/GarlicOS/buildroot/releases/latest/download/arm-buildroot-linux-gnueabihf_sdk-buildroot.tar.gz"
+sudo mkdir -p /usr/local/rg35xx
+sudo tar -xz -C /usr/local/rg35xx < <(curl -L "$SDK_URL")
+# Run the relocation script
+/usr/local/rg35xx/arm-buildroot-linux-gnueabihf_sdk-buildroot/relocate-sdk.sh
+```
+
+**Step 2 — Build:**
+```bash
+export RGTOOLCHAIN=/usr/local/rg35xx/arm-buildroot-linux-gnueabihf_sdk-buildroot
 bash Makefiles/make_rg35xx.sh
 ```
 
-The script sets the appropriate cross-compiler flags and produces a binary compatible with these devices. See `release-resources/Blockamok_rg35xx.sh` for the launcher wrapper.
+Output: binary in `build_rg35xx/`. Use the `release-resources/Blockamok_rg35xx.sh` launcher wrapper for correct library paths on the device.
+
+> **Note:** The RG35XX build shares the same Linux + SDL2 code path as the PC Linux build (`-DLINUX -DPC`). There is no separate "handheld Linux" CI — the compile-check CI's `PC_LINUX` matrix entry verifies this code path on every push.

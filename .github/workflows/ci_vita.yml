@@ -10,6 +10,7 @@ on:
       - '.github/workflows/ci_vita.yml'
   pull_request:
     branches: [main, master, develop]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -30,9 +31,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /usr/local/vitasdk
-          key: vitasdk-2024-v3
+          key: vitasdk-2024-v4
 
       - name: Install vitasdk
+        # Only run bootstrap if the cache did NOT restore vitasdk
         if: steps.cache-vitasdk.outputs.cache-hit != 'true'
         run: |
           export VITASDK=/usr/local/vitasdk
@@ -45,20 +47,23 @@ jobs:
           echo "/usr/local/vitasdk/bin" >> $GITHUB_PATH
           echo "VITASDK=/usr/local/vitasdk" >> $GITHUB_ENV
 
+      - name: Clone vdpm (always needed for package installs)
+        run: |
+          git clone --depth=1 https://github.com/vitasdk/vdpm /tmp/vdpm 2>/dev/null || true
+
       - name: Cache SDL2 Vita packages
         id: cache-vita-sdl
         uses: actions/cache@v4
         with:
           path: /tmp/vita-sdl-installed
-          key: vita-sdl2-2.28-mixer-2.6-ttf-2.22
+          key: vita-sdl2-2.28-mixer-2.6-ttf-2.22-v2
 
-      - name: Install SDL2 / mixer / ttf for Vita via vdpm
+      - name: Install SDL2 / mixer / ttf for Vita
         if: steps.cache-vita-sdl.outputs.cache-hit != 'true'
         run: |
           export VITASDK=/usr/local/vitasdk
           export PATH=$VITASDK/bin:$PATH
           cd /tmp/vdpm
-          # Install in order: SDL2 first, then mixer and ttf which depend on it
           ./vdpm SDL2
           ./vdpm SDL2_mixer
           ./vdpm SDL2_ttf

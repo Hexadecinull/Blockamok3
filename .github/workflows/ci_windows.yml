@@ -9,6 +9,7 @@ on:
       - 'Makefiles/Makefile_pc_x86'
       - 'release-resources/resource.rc'
       - 'release-resources/resource.h'
+      - 'ci/Directory.Build.props'
       - '.github/workflows/ci_windows.yml'
   pull_request:
     branches: [main, master, develop]
@@ -34,7 +35,7 @@ jobs:
             mingw-w64-x86_64-SDL2_ttf
             mingw-w64-x86_64-pkgconf
             make
-      - name: Build (normal)
+      - name: Build
         run: make -f Makefiles/Makefile_pc -j$(nproc)
       - name: Verify EXE
         run: test -f BlockamokRemix.exe
@@ -63,7 +64,7 @@ jobs:
             mingw-w64-x86_64-SDL2_ttf
             mingw-w64-x86_64-pkgconf
             make
-      - name: Build (low-end / size-optimised)
+      - name: Build (low-end)
         run: make -f Makefiles/Makefile_pc LOW_END=1 -j$(nproc)
       - name: Verify EXE
         run: test -f BlockamokRemix.exe
@@ -113,67 +114,63 @@ jobs:
         uses: actions/cache@v4
         with:
           path: SDL2
-          key: sdl2-vc-2.30.10-v3
+          key: sdl2-vc-2.30.10-v4
 
       - name: Download and extract SDL2 VC libraries
         if: steps.cache-sdl2.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          $sdlVer   = "2.30.10"
-          $mixerVer = "2.8.0"
-          $ttfVer   = "2.22.0"
-
-          function Download-SDL($url, $zipName, $innerFolder, $destFolder) {
+          function Get-SDL($url, $zipName, $destDir) {
             Write-Host "Downloading $url"
             Invoke-WebRequest $url -OutFile $zipName
-            # Extract to a temp dir, then move the single subfolder out
-            $tmp = "sdl_tmp_$(Get-Random)"
+            $tmp = "tmp_$(Get-Random)"
             Expand-Archive $zipName -DestinationPath $tmp -Force
-            # The zip contains exactly one top-level folder; find it
-            $extracted = Get-ChildItem $tmp -Directory | Select-Object -First 1
-            New-Item -ItemType Directory -Force $destFolder | Out-Null
-            # Move contents (not the folder itself) to destination
-            Get-ChildItem $extracted.FullName | Move-Item -Destination $destFolder -Force
-            Remove-Item $tmp -Recurse -Force
+            # Each zip has exactly one top-level folder; get it
+            $inner = (Get-ChildItem $tmp -Directory | Select-Object -First 1).FullName
+            New-Item -ItemType Directory -Force $destDir | Out-Null
+            # Move every item from the inner folder into destDir
+            Get-ChildItem $inner | ForEach-Object { Move-Item $_.FullName $destDir -Force }
+            Remove-Item $tmp  -Recurse -Force
             Remove-Item $zipName -Force
           }
 
           New-Item -ItemType Directory -Force SDL2 | Out-Null
-
-          Download-SDL `
-            "https://github.com/libsdl-org/SDL/releases/download/release-$sdlVer/SDL2-devel-$sdlVer-VC.zip" `
-            "sdl2.zip" "SDL2-$sdlVer" "SDL2\SDL2"
-
-          Download-SDL `
-            "https://github.com/libsdl-org/SDL_mixer/releases/download/release-$mixerVer/SDL2_mixer-devel-$mixerVer-VC.zip" `
-            "mixer.zip" "SDL2_mixer-$mixerVer" "SDL2\SDL2_mixer"
-
-          Download-SDL `
-            "https://github.com/libsdl-org/SDL_ttf/releases/download/release-$ttfVer/SDL2_ttf-devel-$ttfVer-VC.zip" `
-            "ttf.zip" "SDL2_ttf-$ttfVer" "SDL2\SDL2_ttf"
+          Get-SDL "https://github.com/libsdl-org/SDL/releases/download/release-2.30.10/SDL2-devel-2.30.10-VC.zip"            "s.zip" "SDL2\SDL2"
+          Get-SDL "https://github.com/libsdl-org/SDL_mixer/releases/download/release-2.8.0/SDL2_mixer-devel-2.8.0-VC.zip"   "m.zip" "SDL2\SDL2_mixer"
+          Get-SDL "https://github.com/libsdl-org/SDL_ttf/releases/download/release-2.22.0/SDL2_ttf-devel-2.22.0-VC.zip"     "t.zip" "SDL2\SDL2_ttf"
 
           Write-Host "SDL2 layout:"
           Get-ChildItem SDL2 -Recurse -Depth 2 | Select-Object FullName
 
+      - name: Deploy Directory.Build.props
+        # Copies the CI props file that injects SDL2 paths into every MSBuild project.
+        # MSBuild auto-discovers Directory.Build.props in the project root.
+        shell: pwsh
+        run: Copy-Item ci\Directory.Build.props . -Force
+
+      - name: Set SDL2Root env var
+        shell: pwsh
+        run: |
+          $r = "$($pwd.Path)\SDL2\"
+          echo "SDL2Root=$r" >> $env:GITHUB_ENV
+          Write-Host "SDL2Root=$r"
+
       - name: Build with MSBuild
         shell: pwsh
         run: |
-          $root = $pwd.Path
           & "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe" `
             blockamok.sln `
             /p:Configuration=Release `
             /p:Platform=x64 `
-            "/p:IncludePath=$root\SDL2\SDL2\include;$root\SDL2\SDL2_mixer\include;$root\SDL2\SDL2_ttf\include" `
-            "/p:LibraryPath=$root\SDL2\SDL2\lib\x64;$root\SDL2\SDL2_mixer\lib\x64;$root\SDL2\SDL2_ttf\lib\x64" `
             /m
 
       - name: Copy SDL2 DLLs next to EXE
         shell: pwsh
         run: |
           $out = "x64\Release"
-          Copy-Item "SDL2\SDL2\lib\x64\SDL2.dll"              $out -Force
-          Copy-Item "SDL2\SDL2_mixer\lib\x64\SDL2_mixer.dll"  $out -Force
-          Copy-Item "SDL2\SDL2_ttf\lib\x64\SDL2_ttf.dll"      $out -Force
+          Copy-Item "SDL2\SDL2\lib\x64\SDL2.dll"             $out -Force
+          Copy-Item "SDL2\SDL2_mixer\lib\x64\SDL2_mixer.dll" $out -Force
+          Copy-Item "SDL2\SDL2_ttf\lib\x64\SDL2_ttf.dll"     $out -Force
 
       - uses: actions/upload-artifact@v4
         with:

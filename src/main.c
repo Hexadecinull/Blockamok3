@@ -379,8 +379,18 @@ int main(int argc, char *argv[]) {
   SDL_Init(SDL_INIT_TIMER | SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS);
   SDL_GetCurrentDisplayMode(0, &DM);
   displayRefreshRate = (Uint16)DM.refresh_rate;
+  /* Emscripten / headless: SDL may return 0 for refresh rate and display size.
+     Guard both so we never divide by zero downstream. */
+  if (displayRefreshRate == 0) displayRefreshRate = 60;
+#ifdef __EMSCRIPTEN__
+  /* SDL_GetCurrentDisplayMode is unreliable in the browser.
+     Pass 0,0 and let loadConfig fall back to its Emscripten default. */
+  initFilePaths();
+  loadConfig(0, 0);
+#else
   initFilePaths();
   loadConfig(DM.w, DM.h);
+#endif
   init();
   setScalingVals();
   SDL_RenderSetViewport(renderer, NULL);

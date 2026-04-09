@@ -9,6 +9,7 @@ on:
       - '.github/workflows/ci_xbox360.yml'
   pull_request:
     branches: [main, master, develop]
+  workflow_dispatch:
 
 # libxenon has no pre-built Docker image; we build the toolchain from source
 # and cache it. Cold build ~25–35 min; subsequent runs use the cache (~2 min).

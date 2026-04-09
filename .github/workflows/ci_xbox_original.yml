@@ -21,17 +21,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify nxdk toolchain and locate NXDK_DIR
+      - name: Set up nxdk environment
         run: |
-          # The container sets NXDK_DIR automatically; export it for make
-          echo "NXDK_DIR=${NXDK_DIR:-/nxdk}" >> $GITHUB_ENV
+          # Locate NXDK and ensure its toolchain is in PATH
+          NXDK="${NXDK_DIR:-/usr/src/nxdk}"
+          echo "NXDK_DIR=$NXDK" >> $GITHUB_ENV
+
+          # nxdk ships activate.sh or similar; source it if present
+          if [ -f "$NXDK/bin/activate" ]; then
+            source "$NXDK/bin/activate"
+          fi
+
+          # Add nxdk's llvm/bin and tool wrappers to PATH
+          for d in "$NXDK/bin" "$NXDK/tools/cxbe" "$NXDK/lib/llvm/bin"; do
+            [ -d "$d" ] && echo "$d" >> $GITHUB_PATH
+          done
+
+          echo "NXDK path: $NXDK"
+          ls "$NXDK/" 2>/dev/null | head -20
+
+      - name: Verify toolchain
+        run: |
+          which nxdk-cc 2>/dev/null || \
+          (find / -name "nxdk-cc" 2>/dev/null | head -3 && \
+           echo "nxdk-cc not in PATH; adding its directory..." && \
+           NXDK_CC=$(find / -name "nxdk-cc" 2>/dev/null | head -1) && \
+           [ -n "$NXDK_CC" ] && echo "$(dirname $NXDK_CC)" >> $GITHUB_PATH)
           nxdk-cc --version 2>/dev/null || clang --version
-          ls "${NXDK_DIR:-/nxdk}/Makefile" 2>/dev/null \
-            && echo "NXDK found at ${NXDK_DIR:-/nxdk}" \
-            || (echo "Searching for nxdk Makefile..." && find / -name "nxdk.mk" -o -name "Makefile" -path "*/nxdk/*" 2>/dev/null | head -5)
 
       - name: Build Blockamok for OG Xbox
-        run: make -f Makefiles/Makefile_xbox NXDK_DIR="$NXDK_DIR" -j$(nproc)
+        run: |
+          make -f Makefiles/Makefile_xbox NXDK_DIR="$NXDK_DIR" -j$(nproc)
 
       - name: Verify output
         run: ls -lh *.xbe *.iso 2>/dev/null || true

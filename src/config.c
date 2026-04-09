@@ -285,6 +285,12 @@ void loadConfig(int screenWidth, int screenHeight) {
 #elif defined(WII_U)
   WINDOW_WIDTH = 960;
   WINDOW_HEIGHT = 540;
+#elif defined(__EMSCRIPTEN__)
+	/* SDL_GetCurrentDisplayMode returns 0 in browser; use canvas size or a safe default */
+	WINDOW_WIDTH  = (screenWidth  > 0) ? screenWidth  : 640;
+	WINDOW_HEIGHT = (screenHeight > 0) ? screenHeight : 640;
+	/* Game viewport is square; clamp height to width */
+	if (WINDOW_HEIGHT > WINDOW_WIDTH) WINDOW_HEIGHT = WINDOW_WIDTH;
 #elif defined(LINUX) || !defined(PC)
 	WINDOW_WIDTH = screenWidth;
 	WINDOW_HEIGHT = screenHeight;

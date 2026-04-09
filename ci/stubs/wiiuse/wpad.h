@@ -1,4 +1,7 @@
 #pragma once
+/* In real libogc, PAD_* constants are available via gccore.h/ogc/pad.h
+   in any Wii build environment. Include our stub to mirror this. */
+#include "../ogc/pad.h"
 #include <stdint.h>
 #define WPAD_CHAN_0 0
 typedef enum { EXP_NONE=0, EXP_NUNCHUK=1, EXP_CLASSIC=2 } exp_type_t;

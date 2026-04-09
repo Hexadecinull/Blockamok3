@@ -22,25 +22,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Refresh dkp-pacman databases with retry
+      - name: Sync dkp-pacman databases with retry
         run: |
           dkp-pacman -Sy --noconfirm 2>/dev/null || \
           (sleep 15 && dkp-pacman -Sy --noconfirm 2>/dev/null) || \
           (sleep 30 && dkp-pacman -Sy --noconfirm)
 
       - name: Install 3DS dev tools
-        # 3ds-sdl2/mixer/ttf are in devkitpro's portlibs-3ds group.
-        # If unavailable (e.g. not yet ported), the build step will fail
-        # gracefully with continue-on-error.
         run: |
-          dkp-pacman -S --noconfirm --needed 3ds-dev \
-            || echo "3ds-dev already up to date"
-          dkp-pacman -S --noconfirm --needed 3ds-sdl2 3ds-sdl2_mixer 3ds-sdl2_ttf \
-            || echo "Warning: 3DS SDL2 portlibs not available in current repo snapshot"
+          dkp-pacman -S --noconfirm --needed 3ds-dev || true
+          dkp-pacman -S --noconfirm --needed 3ds-sdl2 3ds-sdl2_mixer 3ds-sdl2_ttf || \
+            echo "Warning: 3DS SDL2 portlibs unavailable in current repo snapshot"
+
+      - name: Symlink Makefile for devkitPro recursive build
+        # Makefile_3ds calls: $(MAKE) -C $(BUILD) -f $(CURDIR)/Makefile
+        # $(CURDIR) is the project root, so it needs a file called exactly "Makefile".
+        run: ln -sf Makefiles/Makefile_3ds Makefile
 
       - name: Build
         continue-on-error: true
-        run: make -f Makefiles/Makefile_3ds -j$(nproc)
+        run: make -j$(nproc)
 
       - name: Verify output
         run: ls -lh *.cia *.3dsx *.smdh 2>/dev/null || ls -lh *.elf 2>/dev/null || echo "No output (SDL2 portlibs may be unavailable)"

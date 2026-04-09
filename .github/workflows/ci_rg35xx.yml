@@ -12,9 +12,10 @@ on:
     branches: [main, master, develop]
   workflow_dispatch:
 
-# The RG35XX and similar Anbernic/GarlicOS/MuOS handhelds run a custom
-# ARM Linux (armv7l, softfp). The official SDK ships a Buildroot-based
-# ARM cross-toolchain. We download and cache that toolchain here.
+# The RG35XX runs ARM Linux (armv7l, softfp / gnueabihf).
+# We use the arm-linux-gnueabihf cross-toolchain from Ubuntu's repos
+# (the same architecture) with SDL2 cross-compiled for it.
+# This gives us a CI-verifiable ARM binary matching the device ABI.
 
 jobs:
   build:
@@ -24,63 +25,88 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install host build dependencies
+      - name: Install ARM cross-toolchain and dependencies
         run: |
           sudo apt-get update -qq
+          sudo dpkg --add-architecture armhf
+          sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            cmake make git curl tar xz-utils \
-            gcc g++ libsdl2-dev libsdl2-mixer-dev libsdl2-ttf-dev
+            gcc-arm-linux-gnueabihf \
+            cmake make ninja-build pkg-config git \
+            libsdl2-dev:armhf libsdl2-mixer-dev:armhf libsdl2-ttf:armhf \
+            libmikmod-dev:armhf 2>/dev/null || \
+          sudo apt-get install -y --no-install-recommends \
+            gcc-arm-linux-gnueabihf \
+            cmake make ninja-build pkg-config git
 
-      - name: Cache RG35XX toolchain
-        id: cache-rg35xx
+      - name: Cache SDL2 ARM build
+        id: cache-sdl2-arm
         uses: actions/cache@v4
         with:
-          path: /usr/local/rg35xx
-          key: rg35xx-toolchain-v2
+          path: /usr/local/arm-sdl2
+          key: sdl2-arm-gnueabihf-2.30.10-v2
 
-      - name: Download RG35XX cross-toolchain
-        if: steps.cache-rg35xx.outputs.cache-hit != 'true'
+      - name: Build SDL2 for ARM if not cached
+        if: steps.cache-sdl2-arm.outputs.cache-hit != 'true'
         run: |
-          # Anbernic publishes the buildroot SDK on their GitHub releases
-          SDK_URL="https://github.com/GarlicOS/buildroot/releases/latest/download/arm-buildroot-linux-gnueabihf_sdk-buildroot.tar.gz"
-          sudo mkdir -p /usr/local/rg35xx
-          sudo chown $USER:$USER /usr/local/rg35xx
-          echo "Downloading RG35XX SDK..."
-          curl -L "$SDK_URL" \
-            | tar -xz -C /usr/local/rg35xx --strip-components=0 2>/dev/null \
-          || {
-            echo "Primary URL failed; trying mirror..."
-            # Fallback: use a known stable release tag
-            SDK_URL="https://github.com/GarlicOS/buildroot/releases/download/v1.3.4/arm-buildroot-linux-gnueabihf_sdk-buildroot.tar.gz"
-            curl -L "$SDK_URL" \
-              | tar -xz -C /usr/local/rg35xx --strip-components=0
-          }
-          # Run the relocation script if present
-          if [ -f /usr/local/rg35xx/arm-buildroot-linux-gnueabihf_sdk-buildroot/relocate-sdk.sh ]; then
-            /usr/local/rg35xx/arm-buildroot-linux-gnueabihf_sdk-buildroot/relocate-sdk.sh
+          PREFIX=/usr/local/arm-sdl2
+          CC=arm-linux-gnueabihf-gcc
+          CMAKE_FLAGS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=armv7l \
+            -DCMAKE_C_COMPILER=$CC -DCMAKE_INSTALL_PREFIX=$PREFIX \
+            -DSDL_SHARED=OFF -DSDL_STATIC=ON"
+
+          # SDL2
+          curl -sL https://github.com/libsdl-org/SDL/releases/download/release-2.30.10/SDL2-2.30.10.tar.gz \
+            | tar -xz -C /tmp
+          cmake -S /tmp/SDL2-2.30.10 -B /tmp/sdl2-build $CMAKE_FLAGS -DSDL_AUDIO=ON
+          cmake --build /tmp/sdl2-build -j$(nproc)
+          sudo cmake --install /tmp/sdl2-build
+
+          # SDL2_mixer (minimal – no MP3 to keep build fast)
+          curl -sL https://github.com/libsdl-org/SDL_mixer/releases/download/release-2.8.0/SDL2_mixer-2.8.0.tar.gz \
+            | tar -xz -C /tmp
+          cmake -S /tmp/SDL2_mixer-2.8.0 -B /tmp/mixer-build $CMAKE_FLAGS \
+            -DSDL2MIXER_MP3=OFF -DSDL2MIXER_FLAC=OFF -DSDL2MIXER_MOD=OFF \
+            "-DSDL2_DIR=$PREFIX/lib/cmake/SDL2"
+          cmake --build /tmp/mixer-build -j$(nproc)
+          sudo cmake --install /tmp/mixer-build
+
+          # SDL2_ttf
+          curl -sL https://github.com/libsdl-org/SDL_ttf/releases/download/release-2.22.0/SDL2_ttf-2.22.0.tar.gz \
+            | tar -xz -C /tmp
+          cmake -S /tmp/SDL2_ttf-2.22.0 -B /tmp/ttf-build $CMAKE_FLAGS \
+            "-DSDL2_DIR=$PREFIX/lib/cmake/SDL2"
+          cmake --build /tmp/ttf-build -j$(nproc)
+          sudo cmake --install /tmp/ttf-build
+
+      - name: Build Blockamok for RG35XX / ARM Linux
+        run: |
+          PREFIX=/usr/local/arm-sdl2
+          mkdir -p build_rg35xx && cd build_rg35xx
+          cmake .. \
+            -DCMAKE_SYSTEM_NAME=Linux \
+            -DCMAKE_SYSTEM_PROCESSOR=armv7l \
+            -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc \
+            -DRG35XX=ON \
+            -DLINUX=ON \
+            -DSDL2_DIR="$PREFIX/lib/cmake/SDL2" \
+            -DSDL2_mixer_DIR="$PREFIX/lib/cmake/SDL2_mixer" \
+            -DSDL2_ttf_DIR="$PREFIX/lib/cmake/SDL2_ttf"
+          make -j$(nproc)
+
+      - name: Verify ARM binary
+        run: |
+          BIN=$(find build_rg35xx -type f -executable | head -1)
+          if [ -n "$BIN" ]; then
+            file "$BIN"
+            ls -lh "$BIN"
+          else
+            echo "No executable found in build_rg35xx/"
           fi
-
-      - name: Verify toolchain
-        run: |
-          TC="/usr/local/rg35xx/arm-buildroot-linux-gnueabihf_sdk-buildroot/bin"
-          ls "$TC"/arm-buildroot-linux-gnueabihf-gcc 2>/dev/null \
-            && "$TC/arm-buildroot-linux-gnueabihf-gcc" --version \
-            || echo "Toolchain binary not found at expected path; will proceed"
-
-      - name: Build (via make_rg35xx.sh)
-        run: |
-          export RGTOOLCHAIN=/usr/local/rg35xx/arm-buildroot-linux-gnueabihf_sdk-buildroot
-          bash Makefiles/make_rg35xx.sh
-
-      - name: Verify output binary
-        run: |
-          ls -lh build_rg35xx/blockamokremix* build_rg35xx/BlockamokRemix* 2>/dev/null \
-          || find build_rg35xx -type f -executable | xargs ls -lh 2>/dev/null \
-          || echo "No executable found"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: blockamokremix-rg35xx
+          name: blockamokremix-rg35xx-arm
           path: |
             build_rg35xx/blockamokremix*
             build_rg35xx/BlockamokRemix*

@@ -1,0 +1,16 @@
+<!-- Auto-detected by MSBuild in CI. Injects SDL2 paths set by the workflow.
+     SDL2Root env var is set by the CI step before MSBuild runs.
+     Falls back to the SDL2/ folder next to the project root. -->
+<Project>
+  <PropertyGroup>
+    <SDL2Root Condition="'$(SDL2Root)'==''">$(MSBuildThisFileDirectory)SDL2\</SDL2Root>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SDL2Root)SDL2\include;$(SDL2Root)SDL2_mixer\include;$(SDL2Root)SDL2_ttf\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(SDL2Root)SDL2\lib\x64;$(SDL2Root)SDL2_mixer\lib\x64;$(SDL2Root)SDL2_ttf\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+</Project>

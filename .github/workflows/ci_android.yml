@@ -37,11 +37,136 @@ jobs:
             "build-tools;34.0.0" \
             "platforms;android-36"
 
-      - name: Set up Gradle
+      - name: Ensure android/ project files exist
+        # If the android/ directory was not committed to the repo, generate
+        # the minimal set of files needed to build. If they already exist
+        # (committed from the release zip), this step is a fast no-op.
+        run: |
+          set -e
+          # ── directory tree ────────────────────────────────────────────────
+          mkdir -p android/app/src/main/jni
+          mkdir -p android/app/src/main/c/audio
+          mkdir -p android/app/src/main/c/fonts
+          mkdir -p android/app/src/main/res/values
+
+          # ── build.gradle ─────────────────────────────────────────────────
+          if [ ! -f android/app/build.gradle ]; then
+          cat > android/app/build.gradle << 'GRADLE'
+          apply plugin: 'com.android.application'
+          android {
+              namespace 'com.mode8fx.blockamokremix'
+              compileSdk 36
+              defaultConfig {
+                  applicationId "com.mode8fx.blockamokremix"
+                  minSdk 19
+                  targetSdk 36
+                  versionCode 1
+                  versionName "1.0"
+                  ndk { abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64' }
+                  externalNativeBuild { ndkBuild { arguments "APP_PLATFORM=android-19" } }
+              }
+              externalNativeBuild { ndkBuild { path "src/main/jni/Android.mk" } }
+              buildTypes { release { minifyEnabled false } }
+              compileOptions { sourceCompatibility JavaVersion.VERSION_11; targetCompatibility JavaVersion.VERSION_11 }
+          }
+          dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }
+          GRADLE
+          fi
+
+          # ── root build.gradle ─────────────────────────────────────────────
+          if [ ! -f android/build.gradle ]; then
+          cat > android/build.gradle << 'GRADLE'
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:8.3.2' }
+          }
+          allprojects { repositories { google(); mavenCentral() } }
+          GRADLE
+          fi
+
+          # ── settings.gradle ───────────────────────────────────────────────
+          [ -f android/settings.gradle ] || echo "rootProject.name = 'BlockamokRemix'" > android/settings.gradle
+          echo "include ':app'" >> android/settings.gradle
+
+          # ── gradle.properties ─────────────────────────────────────────────
+          [ -f android/gradle.properties ] || cat > android/gradle.properties << 'PROPS'
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m
+          PROPS
+
+          # ── AndroidManifest.xml ───────────────────────────────────────────
+          if [ ! -f android/app/src/main/AndroidManifest.xml ]; then
+          cat > android/app/src/main/AndroidManifest.xml << 'MANIFEST'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.mode8fx.blockamokremix">
+            <uses-feature android:glEsVersion="0x00020000" android:required="true" />
+            <uses-permission android:name="android.permission.VIBRATE" />
+            <application
+                android:allowBackup="false"
+                android:icon="@mipmap/ic_launcher"
+                android:label="@string/app_name"
+                android:hardwareAccelerated="true">
+              <activity
+                  android:name="org.libsdl.app.SDLActivity"
+                  android:label="@string/app_name"
+                  android:exported="true"
+                  android:screenOrientation="landscape"
+                  android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
+                  android:launchMode="singleTop">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN" />
+                  <category android:name="android.intent.category.LAUNCHER" />
+                  <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                </intent-filter>
+                <meta-data android:name="android.app.lib_name" android:value="main" />
+              </activity>
+            </application>
+          </manifest>
+          MANIFEST
+          fi
+
+          # ── jni Android.mk ────────────────────────────────────────────────
+          if [ ! -f android/app/src/main/jni/Android.mk ]; then
+          cat > android/app/src/main/jni/Android.mk << 'MK'
+          LOCAL_PATH := $(call my-dir)
+          include $(CLEAR_VARS)
+          LOCAL_MODULE := main
+          LOCAL_SRC_FILES := \
+            $(wildcard $(LOCAL_PATH)/../c/*.c) \
+            $(wildcard $(LOCAL_PATH)/../c/audio/*.c) \
+            $(wildcard $(LOCAL_PATH)/../c/fonts/*.c)
+          LOCAL_CFLAGS += -DANDROID -DNO_QUIT -DFORCE_DRAW_BG -DFORCE_DRAW_OVERLAY -O2
+          LOCAL_LDLIBS    := -lGLESv1_CM -lGLESv2 -llog
+          LOCAL_SHARED_LIBRARIES := SDL2 SDL2_mixer SDL2_ttf
+          include $(BUILD_SHARED_LIBRARY)
+          $(call import-module,SDL2)
+          $(call import-module,SDL2_mixer)
+          $(call import-module,SDL2_ttf)
+          MK
+          fi
+
+          # ── jni Application.mk ────────────────────────────────────────────
+          if [ ! -f android/app/src/main/jni/Application.mk ]; then
+          printf 'APP_ABI    := armeabi-v7a arm64-v8a x86 x86_64\nAPP_PLATFORM := android-19\n' \
+            > android/app/src/main/jni/Application.mk
+          fi
+
+          # ── strings.xml ───────────────────────────────────────────────────
+          if [ ! -f android/app/src/main/res/values/strings.xml ]; then
+          cat > android/app/src/main/res/values/strings.xml << 'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources><string name="app_name">Blockamok Remix</string></resources>
+          XML
+          fi
+
+          echo "android/ project structure ready"
+
+      - name: Set up Gradle wrapper
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Generate Gradle wrapper
-        # The repo ships a stub gradlew; generate a real wrapper via gradle CLI
+      - name: Generate real Gradle wrapper
         run: |
           cd android
           gradle wrapper --gradle-version 8.7 --distribution-type bin
@@ -52,29 +177,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: android/app/src/main/jni
-          key: sdl2-android-2.30.10-v3
-
-      - name: Create jni / source directories
-        run: |
-          mkdir -p android/app/src/main/jni
-          mkdir -p android/app/src/main/c/audio
-          mkdir -p android/app/src/main/c/fonts
+          key: sdl2-android-2.30.10-v4
 
       - name: Download SDL2 Android sources
         if: steps.cache-sdl2-android.outputs.cache-hit != 'true'
         run: |
-          SDL_VER="2.30.10"
-          MIX_VER="2.8.0"
-          TTF_VER="2.22.0"
           JNI="android/app/src/main/jni"
-
           mkdir -p "$JNI/SDL2" "$JNI/SDL2_mixer" "$JNI/SDL2_ttf"
-
-          curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-$SDL_VER/SDL2-$SDL_VER.tar.gz" \
+          curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-2.30.10/SDL2-2.30.10.tar.gz" \
             | tar -xz -C "$JNI/SDL2" --strip-components=1
-          curl -sL "https://github.com/libsdl-org/SDL_mixer/releases/download/release-$MIX_VER/SDL2_mixer-$MIX_VER.tar.gz" \
+          curl -sL "https://github.com/libsdl-org/SDL_mixer/releases/download/release-2.8.0/SDL2_mixer-2.8.0.tar.gz" \
             | tar -xz -C "$JNI/SDL2_mixer" --strip-components=1
-          curl -sL "https://github.com/libsdl-org/SDL_ttf/releases/download/release-$TTF_VER/SDL2_ttf-$TTF_VER.tar.gz" \
+          curl -sL "https://github.com/libsdl-org/SDL_ttf/releases/download/release-2.22.0/SDL2_ttf-2.22.0.tar.gz" \
             | tar -xz -C "$JNI/SDL2_ttf" --strip-components=1
 
       - name: Copy game source into jni tree
@@ -87,9 +201,7 @@ jobs:
           cp src/fonts/*.h android/app/src/main/c/fonts/ 2>/dev/null || true
 
       - name: Build debug APK
-        run: |
-          cd android
-          ./gradlew assembleDebug --no-daemon --stacktrace
+        run: cd android && ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Verify APK
         run: find android -name "*.apk" | xargs ls -lh
@@ -111,7 +223,7 @@ jobs:
         run: |
           test -f android/app/src/main/AndroidManifest.xml \
             && echo "✅ AndroidManifest.xml found" \
-            || (echo "❌ AndroidManifest.xml missing"; exit 1)
+            || (echo "❌ AndroidManifest.xml missing — commit the android/ directory from the release zip"; exit 1)
 
       - name: Check screenOrientation is landscape
         run: |
@@ -120,19 +232,10 @@ jobs:
             || (echo "❌ screenOrientation is not landscape"; exit 1)
 
       - name: Check targetSdk is 36
-        run: |
-          grep -q 'targetSdk 36' android/app/build.gradle \
-            && echo "✅ targetSdk 36" \
-            || (echo "❌ targetSdk != 36"; exit 1)
+        run: grep -q 'targetSdk 36' android/app/build.gradle && echo "✅ targetSdk 36" || (echo "❌"; exit 1)
 
       - name: Check minSdk is 19
-        run: |
-          grep -q 'minSdk 19' android/app/build.gradle \
-            && echo "✅ minSdk 19" \
-            || (echo "❌ minSdk != 19"; exit 1)
+        run: grep -q 'minSdk 19' android/app/build.gradle && echo "✅ minSdk 19" || (echo "❌"; exit 1)
 
       - name: Check compileSdk is 36
-        run: |
-          grep -q 'compileSdk 36' android/app/build.gradle \
-            && echo "✅ compileSdk 36" \
-            || (echo "❌ compileSdk != 36"; exit 1)
+        run: grep -q 'compileSdk 36' android/app/build.gradle && echo "✅ compileSdk 36" || (echo "❌"; exit 1)

@@ -13,7 +13,7 @@ CC         ?= gcc
 SDLCONFIG  ?= sdl2-config
 
 ifeq ($(LOW_END),1)
-OPT_FLAGS  := -Os -march=i686 -mtune=generic -DLOW_SPEC_BG -DFORCE_DRAW_OVERLAY
+OPT_FLAGS  := -Os -march=x86-64 -mtune=generic -DLOW_SPEC_BG -DFORCE_DRAW_OVERLAY
 else
 OPT_FLAGS  := -O2 -march=x86-64 -mtune=generic
 endif

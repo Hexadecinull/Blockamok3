@@ -9,6 +9,7 @@ on:
       - 'Makefiles/Makefile_gc'
       - '.github/workflows/ci_wii_gc.yml'
   pull_request:
+  workflow_dispatch:
     branches: [main, master, develop]
 
 jobs:

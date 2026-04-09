@@ -37,7 +37,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /usr/local/xenon
-          key: libxenon-toolchain-v3
+          key: libxenon-toolchain-v4-${{ runner.os }}
 
       - name: Build libxenon toolchain
         if: steps.cache-xenon.outputs.cache-hit != 'true'
@@ -65,7 +65,8 @@ jobs:
           if command -v powerpc64-xenon-elf-gcc &>/dev/null; then
             XENON_DIR=/usr/local/xenon make -f Makefiles/Makefile_xbox360 -j$(nproc)
           else
-            echo "Toolchain unavailable; skipping" && exit 0
+            echo "::warning::powerpc64-xenon-elf-gcc not available – toolchain build likely failed or timed out. No artifact produced."
+            exit 0
           fi
 
       - name: Verify output

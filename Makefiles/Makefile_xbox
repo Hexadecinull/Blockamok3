@@ -1,13 +1,15 @@
 XBE_TITLE = BlockamokRemix
-GEN_XISO = $(XBE_TITLE).iso
-SRC_DIR = src
-SRCS =	$(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/**/*.c)
+GEN_XISO  = $(XBE_TITLE).iso
+SRC_DIR   = src
+SRCS      = $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/**/*.c)
 
 NXDK_DIR ?= ~/nxdk
-NXDK_SDL = y
+NXDK_SDL  = y
+NXDK_CXX  = y
 
-NXDK_CXX = y
-
-CFLAGS += -O2 -DXBOX
+# LOW_SPEC_BG: skip SDL_RenderGeometry-based background gradient (nxdk SDL2 is old).
+# FORCE_DRAW_OVERLAY: redraw overlay bars every frame.
+# NO_QUIT: disable the quit screen (original Xbox has no desktop to quit to).
+CFLAGS += -O2 -DXBOX -DLOW_SPEC_BG -DFORCE_DRAW_OVERLAY -DNO_QUIT
 
 include $(NXDK_DIR)/Makefile

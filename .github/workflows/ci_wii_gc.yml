@@ -52,9 +52,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Sync dkp-pacman databases with retry
+        run: |
+          dkp-pacman -Sy --noconfirm 2>/dev/null || \
+          (sleep 15 && dkp-pacman -Sy --noconfirm 2>/dev/null) || \
+          (sleep 30 && dkp-pacman -Sy --noconfirm)
+
       - name: Install GameCube portlibs
         run: |
-          dkp-pacman -Sy --noconfirm \
+          dkp-pacman -S --noconfirm --needed \
             gamecube-sdl2 gamecube-sdl2_mixer gamecube-sdl2_ttf \
             libfat-ogc
 

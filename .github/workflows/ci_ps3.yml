@@ -39,7 +39,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /usr/local/ps3dev
-          key: ps3toolchain-v4
+          key: ps3toolchain-v5-${{ runner.os }}
 
       - name: Build ps3toolchain
         if: steps.cache-ps3dev.outputs.cache-hit != 'true'
@@ -68,7 +68,8 @@ jobs:
           if command -v ppu-gcc &>/dev/null; then
             make -f Makefiles/Makefile_ps3 -j$(nproc)
           else
-            echo "ppu-gcc not available – skipping game build" && exit 0
+            echo "::warning::ppu-gcc not available – toolchain build likely failed or timed out. No artifact produced."
+            exit 0
           fi
 
       - name: Verify output

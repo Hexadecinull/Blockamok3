@@ -39,9 +39,17 @@ jobs:
         # $(CURDIR) is the project root, so it needs a file called exactly "Makefile".
         run: ln -sf Makefiles/Makefile_3ds Makefile
 
+      - name: Set PKG_CONFIG_PATH for devkitPro
+        run: |
+          # devkitPro installs portlib pkg-config files here
+          echo "PKG_CONFIG_PATH=$DEVKITPRO/portlibs/3ds/lib/pkgconfig:$DEVKITPRO/portlibs/armv6k/lib/pkgconfig" >> $GITHUB_ENV
+          echo "SDL2_CONFIG=$DEVKITPRO/portlibs/3ds/bin/sdl2-config" >> $GITHUB_ENV
+
       - name: Build
         continue-on-error: true
-        run: make -j$(nproc)
+        run: |
+          export PKG_CONFIG_PATH="$DEVKITPRO/portlibs/3ds/lib/pkgconfig:$DEVKITPRO/portlibs/armv6k/lib/pkgconfig"
+          make -j$(nproc)
 
       - name: Verify output
         run: ls -lh *.cia *.3dsx *.smdh 2>/dev/null || ls -lh *.elf 2>/dev/null || echo "No output (SDL2 portlibs may be unavailable)"

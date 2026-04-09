@@ -36,7 +36,9 @@ SDL_Point transformedCube[CUBE_FACE_N * 5];
 const SDL_Color bgVertexColor1 = {.r = 0, .g = 0, .b = 0, .a = 250 / 3};
 const SDL_Color bgVertexColor2 = {.r = 255, .g = 255, .b = 255, .a = 0};
 
+#ifndef XBOX
 SDL_Vertex triangle[3];
+#endif /* XBOX */
 
 int faceOrder[5];
 
@@ -95,20 +97,19 @@ void setScalingVals() {
   drawOverlayOnThisFrame = true;
 }
 
+#ifndef XBOX
 static inline void drawBackgroundTriangle(SDL_Renderer *renderer, SDL_FPoint *trianglePoints) {
   triangle[0].position = trianglePoints[0];
   triangle[1].position = trianglePoints[1];
   triangle[2].position = trianglePoints[2];
-  //triangle[0].position.x += gameOffsetX;
-  //triangle[1].position.x += gameOffsetX;
-  //triangle[2].position.x += gameOffsetX;
   SDL_RenderGeometry(renderer, NULL, triangle, 3, NULL, 0);
 }
+#endif /* XBOX */
 
 inline static void drawBackground(SDL_Renderer *renderer) {
   SDL_SetRenderDrawColor(renderer, backgroundColor.r, backgroundColor.g, backgroundColor.b, 255);
   SDL_RenderClear(renderer);
-  
+#ifndef XBOX
   SDL_FPoint trianglePoints[3] = {
     {WINDOW_WIDTH_NEG, WINDOW_HEIGHT_HALF},
     {WINDOW_WIDTH_HALF, WINDOW_HEIGHT_NEG},
@@ -235,30 +236,41 @@ static void drawCube(SDL_Renderer *renderer, Cube cube) {
     
     color.a = (Uint8)(255.0f - fadeAmount * 255.0f);
 
-    // Build vertices (two triangles)
+#ifndef XBOX
+    // Build vertices (two triangles) – SDL 2.0.18+
     SDL_Vertex vertices[6];
     for (int i = 0; i < 6; i++) {
       vertices[i].color = color;
     }
-    
-    // First triangle
     vertices[0].position.x = (float)transformed[0].x;
     vertices[0].position.y = (float)transformed[0].y;
     vertices[1].position.x = (float)transformed[1].x;
     vertices[1].position.y = (float)transformed[1].y;
     vertices[2].position.x = (float)transformed[2].x;
     vertices[2].position.y = (float)transformed[2].y;
-
-    // Second triangle
     vertices[3].position.x = (float)transformed[2].x;
     vertices[3].position.y = (float)transformed[2].y;
     vertices[4].position.x = (float)transformed[3].x;
     vertices[4].position.y = (float)transformed[3].y;
     vertices[5].position.x = (float)transformed[4].x;
     vertices[5].position.y = (float)transformed[4].y;
-
-    // Render triangles
     SDL_RenderGeometry(renderer, NULL, vertices, 6, NULL, 0);
+#else
+    // XBOX fallback: filled quad from bounding box of the 4 points
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    {
+      int minX = transformed[0].x, maxX = transformed[0].x;
+      int minY = transformed[0].y, maxY = transformed[0].y;
+      for (int pi = 1; pi < 4; pi++) {
+        if (transformed[pi].x < minX) minX = transformed[pi].x;
+        if (transformed[pi].x > maxX) maxX = transformed[pi].x;
+        if (transformed[pi].y < minY) minY = transformed[pi].y;
+        if (transformed[pi].y > maxY) maxY = transformed[pi].y;
+      }
+      SDL_Rect fillRect = { minX, minY, maxX - minX, maxY - minY };
+      SDL_RenderFillRect(renderer, &fillRect);
+    }
+#endif /* XBOX */
 
     // Render lines with adjusted fadeAmount
     fadeAmount = fminf(fadeAmount * 1.5f, 1.0f);
@@ -315,31 +327,22 @@ static void drawCubeSimple(SDL_Renderer *renderer, Cube cube) {
     // Select color
     SDL_Color color = (faceOrder[f] == FRONT) ? cubeColorFront : cubeColorSide;
 
-    // Build vertices (two triangles)
+#ifndef XBOX
     SDL_Vertex vertices[6];
-    for (int i = 0; i < 6; i++) {
-      vertices[i].color = color;
-    }
-
-    // First triangle
-    vertices[0].position.x = (float)transformed[0].x;
-    vertices[0].position.y = (float)transformed[0].y;
-    vertices[1].position.x = (float)transformed[1].x;
-    vertices[1].position.y = (float)transformed[1].y;
-    vertices[2].position.x = (float)transformed[2].x;
-    vertices[2].position.y = (float)transformed[2].y;
-
-    // Second triangle
-    vertices[3].position.x = (float)transformed[2].x;
-    vertices[3].position.y = (float)transformed[2].y;
-    vertices[4].position.x = (float)transformed[3].x;
-    vertices[4].position.y = (float)transformed[3].y;
-    vertices[5].position.x = (float)transformed[4].x;
-    vertices[5].position.y = (float)transformed[4].y;
-
-    // Render triangles
+    for (int i = 0; i < 6; i++) vertices[i].color = color;
+    vertices[0].position.x = (float)transformed[0].x; vertices[0].position.y = (float)transformed[0].y;
+    vertices[1].position.x = (float)transformed[1].x; vertices[1].position.y = (float)transformed[1].y;
+    vertices[2].position.x = (float)transformed[2].x; vertices[2].position.y = (float)transformed[2].y;
+    vertices[3].position.x = (float)transformed[2].x; vertices[3].position.y = (float)transformed[2].y;
+    vertices[4].position.x = (float)transformed[3].x; vertices[4].position.y = (float)transformed[3].y;
+    vertices[5].position.x = (float)transformed[4].x; vertices[5].position.y = (float)transformed[4].y;
     SDL_RenderGeometry(renderer, NULL, vertices, 6, NULL, 0);
-
+#else
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    { int minX=transformed[0].x,maxX=transformed[0].x,minY=transformed[0].y,maxY=transformed[0].y;
+      for(int pi=1;pi<4;pi++){if(transformed[pi].x<minX)minX=transformed[pi].x;if(transformed[pi].x>maxX)maxX=transformed[pi].x;if(transformed[pi].y<minY)minY=transformed[pi].y;if(transformed[pi].y>maxY)maxY=transformed[pi].y;}
+      SDL_Rect fr={minX,minY,maxX-minX,maxY-minY};SDL_RenderFillRect(renderer,&fr); }
+#endif /* XBOX */
     // Render lines
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderDrawLines(renderer, transformed, 5);

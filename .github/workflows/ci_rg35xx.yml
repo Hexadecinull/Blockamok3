@@ -12,10 +12,9 @@ on:
     branches: [main, master, develop]
   workflow_dispatch:
 
-# The RG35XX runs ARM Linux (armv7l, softfp / gnueabihf).
-# We use the arm-linux-gnueabihf cross-toolchain from Ubuntu's repos
-# (the same architecture) with SDL2 cross-compiled for it.
-# This gives us a CI-verifiable ARM binary matching the device ABI.
+# The RG35XX and compatible Anbernic handhelds run ARM Linux (armhf/gnueabihf).
+# We cross-compile inside an ARM Docker container via QEMU so we don't need
+# dpkg --add-architecture (which requires Ubuntu's ARM apt sources).
 
 jobs:
   build:
@@ -25,91 +24,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install ARM cross-toolchain and dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo dpkg --add-architecture armhf
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            gcc-arm-linux-gnueabihf \
-            cmake make ninja-build pkg-config git \
-            libsdl2-dev:armhf libsdl2-mixer-dev:armhf libsdl2-ttf:armhf \
-            libmikmod-dev:armhf 2>/dev/null || \
-          sudo apt-get install -y --no-install-recommends \
-            gcc-arm-linux-gnueabihf \
-            cmake make ninja-build pkg-config git
-
-      - name: Cache SDL2 ARM build
-        id: cache-sdl2-arm
-        uses: actions/cache@v4
+      - name: Set up QEMU for ARM emulation
+        uses: docker/setup-qemu-action@v3
         with:
-          path: /usr/local/arm-sdl2
-          key: sdl2-arm-gnueabihf-2.30.10-v2
+          platforms: arm
 
-      - name: Build SDL2 for ARM if not cached
-        if: steps.cache-sdl2-arm.outputs.cache-hit != 'true'
-        run: |
-          PREFIX=/usr/local/arm-sdl2
-          CC=arm-linux-gnueabihf-gcc
-          CMAKE_FLAGS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=armv7l \
-            -DCMAKE_C_COMPILER=$CC -DCMAKE_INSTALL_PREFIX=$PREFIX \
-            -DSDL_SHARED=OFF -DSDL_STATIC=ON"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-          # SDL2
-          curl -sL https://github.com/libsdl-org/SDL/releases/download/release-2.30.10/SDL2-2.30.10.tar.gz \
-            | tar -xz -C /tmp
-          cmake -S /tmp/SDL2-2.30.10 -B /tmp/sdl2-build $CMAKE_FLAGS -DSDL_AUDIO=ON
-          cmake --build /tmp/sdl2-build -j$(nproc)
-          sudo cmake --install /tmp/sdl2-build
-
-          # SDL2_mixer (minimal – no MP3 to keep build fast)
-          curl -sL https://github.com/libsdl-org/SDL_mixer/releases/download/release-2.8.0/SDL2_mixer-2.8.0.tar.gz \
-            | tar -xz -C /tmp
-          cmake -S /tmp/SDL2_mixer-2.8.0 -B /tmp/mixer-build $CMAKE_FLAGS \
-            -DSDL2MIXER_MP3=OFF -DSDL2MIXER_FLAC=OFF -DSDL2MIXER_MOD=OFF \
-            "-DSDL2_DIR=$PREFIX/lib/cmake/SDL2"
-          cmake --build /tmp/mixer-build -j$(nproc)
-          sudo cmake --install /tmp/mixer-build
-
-          # SDL2_ttf
-          curl -sL https://github.com/libsdl-org/SDL_ttf/releases/download/release-2.22.0/SDL2_ttf-2.22.0.tar.gz \
-            | tar -xz -C /tmp
-          cmake -S /tmp/SDL2_ttf-2.22.0 -B /tmp/ttf-build $CMAKE_FLAGS \
-            "-DSDL2_DIR=$PREFIX/lib/cmake/SDL2"
-          cmake --build /tmp/ttf-build -j$(nproc)
-          sudo cmake --install /tmp/ttf-build
-
-      - name: Build Blockamok for RG35XX / ARM Linux
-        run: |
-          PREFIX=/usr/local/arm-sdl2
-          mkdir -p build_rg35xx && cd build_rg35xx
-          cmake .. \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=armv7l \
-            -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc \
-            -DRG35XX=ON \
-            -DLINUX=ON \
-            -DSDL2_DIR="$PREFIX/lib/cmake/SDL2" \
-            -DSDL2_mixer_DIR="$PREFIX/lib/cmake/SDL2_mixer" \
-            -DSDL2_ttf_DIR="$PREFIX/lib/cmake/SDL2_ttf"
-          make -j$(nproc)
+      - name: Build in ARM container
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          platforms: linux/arm/v7
+          file: ci/Dockerfile.rg35xx
+          outputs: type=local,dest=build_rg35xx_out
 
       - name: Verify ARM binary
         run: |
-          BIN=$(find build_rg35xx -type f -executable | head -1)
+          BIN=$(find build_rg35xx_out -type f -executable 2>/dev/null | head -1)
           if [ -n "$BIN" ]; then
-            file "$BIN"
+            file "$BIN" || true
             ls -lh "$BIN"
           else
-            echo "No executable found in build_rg35xx/"
+            echo "No executable found – check build output"
+            find build_rg35xx_out -type f | head -20
           fi
 
       - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-rg35xx-arm
           path: |
-            build_rg35xx/blockamokremix*
-            build_rg35xx/BlockamokRemix*
-            release-resources/Blockamok_rg35xx.sh
+            build_rg35xx_out/blockamokremix*
+            build_rg35xx_out/BlockamokRemix*
           retention-days: 14
           if-no-files-found: warn

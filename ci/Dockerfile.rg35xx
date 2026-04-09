@@ -1,0 +1,22 @@
+# ARM v7 build environment for RG35XX / Anbernic handhelds
+FROM --platform=linux/arm/v7 debian:bookworm-slim
+
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+      gcc make cmake \
+      libsdl2-dev libsdl2-mixer-dev libsdl2-ttf-dev \
+      libmikmod-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+COPY . .
+
+# Use the Linux Makefile with the same code path as RG35XX
+RUN make -f Makefiles/Makefile_linux -j$(nproc) && \
+    mkdir -p /out && \
+    cp blockamokremix /out/ && \
+    cp release-resources/Blockamok_rg35xx.sh /out/ 2>/dev/null || true
+
+# Export the binary
+FROM scratch
+COPY --from=0 /out/ /

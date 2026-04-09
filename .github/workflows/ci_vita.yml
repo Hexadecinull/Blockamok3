@@ -62,20 +62,26 @@ jobs:
           key: vita-sdl2-packages-v3
 
       - name: Install SDL2 / mixer / ttf for Vita
-        if: steps.cache-vita-sdl.outputs.cache-vita-sdl != 'true'
+        if: steps.cache-vita-sdl.outputs.cache-hit != 'true'
         run: |
           export VITASDK=/usr/local/vitasdk
           export PATH=$VITASDK/bin:$PATH
+          export PKG_CONFIG_PATH=$VITASDK/arm-vita-eabi/lib/pkgconfig
           cd /tmp/vdpm
           ./vdpm SDL2
           ./vdpm SDL2_mixer
           ./vdpm SDL2_ttf
+          # Verify install
+          $VITASDK/bin/arm-vita-eabi-pkg-config --modversion sdl2 || true
+          $VITASDK/bin/arm-vita-eabi-pkg-config --modversion SDL2_mixer || true
+          $VITASDK/bin/arm-vita-eabi-pkg-config --modversion SDL2_ttf || true
           touch /tmp/vita-sdl-installed
 
       - name: Build VPK
         run: |
           export VITASDK=/usr/local/vitasdk
           export PATH=$VITASDK/bin:$PATH
+          export PKG_CONFIG_PATH=$VITASDK/arm-vita-eabi/lib/pkgconfig
           bash Makefiles/make_vita.sh
 
       - name: Verify VPK

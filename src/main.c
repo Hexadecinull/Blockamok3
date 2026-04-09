@@ -1,5 +1,7 @@
 #include <SDL.h>
+#ifndef XBOX
 #include <SDL_mixer.h>
+#endif
 #include <SDL_ttf.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -105,8 +107,15 @@ static inline void init() {
   SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
   controllerInit();
   TTF_Init();
+#ifndef XBOX
   Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048);
+#endif
+#ifndef __EMSCRIPTEN__
+  /* On Emscripten, audio init is deferred until after emscripten_set_main_loop
+     to prevent SDL_eglSwapInterval from calling emscripten_set_main_loop_timing
+     before the main loop exists (which causes a runtime warning and stall). */
   initAudio();
+#endif
 #if !defined(PC) && !defined(__EMSCRIPTEN__)
   SDL_ShowCursor(SDL_DISABLE);
 #endif
@@ -364,7 +373,10 @@ static void mainLoopStep(void) {
 #ifdef __EMSCRIPTEN__
   if (quit) {
     cleanUpText(); cleanUpMenu(); TTF_Quit();
-    cleanUpAudio(); Mix_CloseAudio(); Mix_Quit();
+    cleanUpAudio();
+#ifndef XBOX
+    Mix_CloseAudio(); Mix_Quit();
+#endif
     SDL_DestroyRenderer(renderer); SDL_DestroyWindow(window); SDL_Quit();
     emscripten_cancel_main_loop();
   }
@@ -397,19 +409,31 @@ int main(int argc, char *argv[]) {
   initStaticMessages(renderer);
   readSaveData(false);
   optionCallback_All();
+#ifndef __EMSCRIPTEN__
+  /* On Emscripten this is called after audio init above */
   playMusicAtIndex(OPTION_MUSIC);
+#endif
   if (OPTION_FULLSCREEN) optionCallback_Fullscreen(window);
   srand((Uint32)time(NULL));
   prepareGame();
 
 #ifdef __EMSCRIPTEN__
   /* fps=0 → use requestAnimationFrame; simulate_infinite_loop=1 */
+  /* Defer audio init until after the main loop is registered */
+#ifndef XBOX
+  Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048);
+#endif
+  initAudio();
+  playMusicAtIndex(OPTION_MUSIC);
   emscripten_set_main_loop(mainLoopStep, 0, 1);
 #else
   while (!quit) mainLoopStep();
 
   cleanUpText(); cleanUpMenu(); TTF_Quit();
-  cleanUpAudio(); Mix_CloseAudio(); Mix_Quit();
+  cleanUpAudio();
+#ifndef XBOX
+  Mix_CloseAudio(); Mix_Quit();
+#endif
   SDL_DestroyRenderer(renderer); SDL_DestroyWindow(window); SDL_Quit();
   systemSpecificClose();
 #endif

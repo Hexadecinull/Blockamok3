@@ -1,7 +1,9 @@
 #pragma once
 
 #include <SDL.h>
+#ifndef XBOX
 #include <SDL_mixer.h>
+#endif
 
 #define SFX_ZOOM 0
 #define SFX_THUNK 1

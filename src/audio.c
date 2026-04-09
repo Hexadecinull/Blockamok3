@@ -1,6 +1,8 @@
 #include <stdio.h>
-
 #include "./audio.h"
+
+#ifndef XBOX
+/* ── Full audio (SDL_mixer) ──────────────────────────────────────────── */
 #include "./audio/spaceranger_50k.h"
 #include "./audio/mano_-_darkness_in_the_night.h"
 #include "./audio/falling_people.h"
@@ -122,3 +124,11 @@ void cleanUpAudio() {
 	destroyChunk(sfx_ding_a);
 	destroyChunk(sfx_ding_b);
 }
+#else
+/* ── XBOX stub: nxdk does not ship SDL_mixer; audio is silenced ─────── */
+void initAudio(void)       {}
+void playMusicAtIndex(Sint8 index) { (void)index; }
+void handleChangeSong(void) {}
+void playSFX(Sint8 index)  { (void)index; }
+void cleanUpAudio(void)    {}
+#endif

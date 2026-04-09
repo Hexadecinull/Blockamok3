@@ -35,7 +35,7 @@ jobs:
           - target: GAMECUBE
             defines: -DGAMECUBE
           - target: XBOX
-            defines: -DXBOX
+            defines: -DXBOX -DLOW_SPEC_BG -DFORCE_DRAW_OVERLAY -DNO_QUIT
           - target: XBOX360
             defines: -DXBOX360
           - target: PS3
@@ -46,6 +46,8 @@ jobs:
             defines: -DPSP
           - target: THREEDS
             defines: -DTHREEDS
+          - target: RG35XX
+            defines: -DPC -DLINUX -DRG35XX
 
     steps:
       - uses: actions/checkout@v4
@@ -61,6 +63,7 @@ jobs:
           DEFINES="${{ matrix.defines }}"
           FAILED=0
           STUB_DIR="ci/stubs"
+          # SDL2 cflags from host; stubs fill in platform-specific headers
           SDL_INC=$(sdl2-config --cflags | sed 's/-D[^ ]*//g')
 
           for f in src/*.c src/audio/*.c src/fonts/*.c; do

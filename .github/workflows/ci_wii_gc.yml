@@ -22,10 +22,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Sync dkp-pacman databases with retry (Wii)
+        run: |
+          dkp-pacman -Sy --noconfirm 2>/dev/null ||           (sleep 20 && dkp-pacman -Sy --noconfirm 2>/dev/null) ||           (sleep 40 && dkp-pacman -Sy --noconfirm 2>/dev/null) ||           (sleep 60 && dkp-pacman -Sy --noconfirm)
+
       - name: Install Wii portlibs
         # libfat is bundled as libfat-ogc, not the old ppc-libfat name
         run: |
-          dkp-pacman -Sy --noconfirm \
+          dkp-pacman -S --noconfirm --needed \
             wii-sdl2 wii-sdl2_mixer wii-sdl2_ttf \
             libfat-ogc
 
@@ -53,10 +57,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Sync dkp-pacman databases with retry
+        continue-on-error: true
         run: |
-          dkp-pacman -Sy --noconfirm 2>/dev/null || \
-          (sleep 15 && dkp-pacman -Sy --noconfirm 2>/dev/null) || \
-          (sleep 30 && dkp-pacman -Sy --noconfirm)
+          dkp-pacman -Sy --noconfirm 2>/dev/null ||           (sleep 20 && dkp-pacman -Sy --noconfirm 2>/dev/null) ||           (sleep 40 && dkp-pacman -Sy --noconfirm 2>/dev/null) ||           (sleep 60 && dkp-pacman -Sy --noconfirm)
 
       - name: Install GameCube portlibs
         run: |

@@ -1,4 +1,5 @@
 # ARM v7 build environment for RG35XX / Anbernic handhelds
+# --platform=linux/arm/v7 means the gcc here is ARM gcc — x86 march flags are invalid
 FROM --platform=linux/arm/v7 debian:bookworm-slim
 
 RUN apt-get update -qq && \
@@ -11,8 +12,10 @@ RUN apt-get update -qq && \
 WORKDIR /build
 COPY . .
 
-# Use the Linux Makefile with the same code path as RG35XX
-RUN make -f Makefiles/Makefile_linux -j$(nproc) && \
+# Override OPT_FLAGS to strip x86-specific march/mtune; arm gcc defaults are fine
+# LOW_SPEC_BG + FORCE_DRAW_OVERLAY are appropriate for handheld hardware
+RUN make -f Makefiles/Makefile_linux -j$(nproc) \
+      OPT_FLAGS="-O2 -DLOW_SPEC_BG -DFORCE_DRAW_OVERLAY" && \
     mkdir -p /out && \
     cp blockamokremix /out/ && \
     cp release-resources/Blockamok_rg35xx.sh /out/ 2>/dev/null || true

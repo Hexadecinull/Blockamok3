@@ -3,6 +3,7 @@
 typedef struct { int dummy; } Mix_Music;
 typedef struct { int dummy; } Mix_Chunk;
 #define MIX_DEFAULT_FORMAT 0x8010
+#define MIX_MAX_VOLUME     128
 int  Mix_OpenAudio(int freq, unsigned short fmt, int channels, int chunksize);
 void Mix_CloseAudio(void);
 int  Mix_Quit(void);

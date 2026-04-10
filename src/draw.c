@@ -88,11 +88,13 @@ void setScalingVals() {
   HALF_FOV_ANGLE_RADIANS = ((FOV_ANGLE / 180.0f) * (float)M_PI) * 0.5f;
   HALF_FOV_ANGLE_RADIANS_TAN = tanf(HALF_FOV_ANGLE_RADIANS);
 
+#ifndef XBOX
   SDL_Color color1 = bgVertexColor1;
   SDL_Color color2 = bgVertexColor2;
   triangle[0].color = color1;
   triangle[1].color = color2;
   triangle[2].color = color1;
+#endif /* XBOX */
 
   drawOverlayOnThisFrame = true;
 }
@@ -119,6 +121,7 @@ inline static void drawBackground(SDL_Renderer *renderer) {
   
   trianglePoints[1].y = WINDOW_HEIGHT_DOUBLE;
   drawBackgroundTriangle(renderer, trianglePoints);
+#endif /* XBOX */
 }
 
 inline void draw(SDL_Renderer *renderer) {

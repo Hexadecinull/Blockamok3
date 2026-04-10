@@ -35,7 +35,7 @@ char configFile[256];
 // Returns a malloc'd string with the directory path. Caller must free() it.
 char* getExeDirectory(void) {
   char buffer[PATH_MAX];
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(XBOX)
   DWORD len = GetModuleFileNameA(NULL, buffer, sizeof(buffer));
   if (len == 0 || len >= sizeof(buffer)) {
     return NULL;
@@ -53,7 +53,7 @@ char* getExeDirectory(void) {
 
   // Find the last directory separator
   char *lastSlash = strrchr(buffer, '/');
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(XBOX)
   char *lastBackslash = strrchr(buffer, '\\');
   if (!lastSlash || (lastBackslash && lastBackslash > lastSlash)) {
     lastSlash = lastBackslash;
@@ -190,6 +190,9 @@ void initFilePaths() {
   //}
 #elif defined(ANDROID)
 	snprintf(rootDir, sizeof(rootDir), "%s", SDL_GetPrefPath("mode8fx", "blockamokremix"));
+#elif defined(__EMSCRIPTEN__)
+  /* Use /blockamok as the IDBFS mount point — persists in IndexedDB */
+  snprintf(rootDir, sizeof(rootDir), "/blockamok/");
 #endif
   snprintf(saveFile, sizeof(saveFile), "%s%s", rootDir, "save.bin");
   snprintf(configFile, sizeof(configFile), "%s%s", rootDir, "config.ini");
@@ -230,6 +233,14 @@ void writeSaveData() {
       free(emptyBytes); // Free the allocated memory
     }
     fclose(file);
+#if defined(__EMSCRIPTEN__)
+    /* Flush IDBFS to IndexedDB so save persists across page reloads */
+    EM_ASM(
+      FS.syncfs(false, function(err) {
+        if (err) console.error("IDBFS write sync error:", err);
+      });
+    );
+#endif
   }
 }
 

@@ -30,6 +30,7 @@ jobs:
           (sleep 30 && dkp-pacman -Sy --noconfirm)
 
       - name: Install 3DS dev tools
+        continue-on-error: true
         run: |
           dkp-pacman -S --noconfirm --needed 3ds-dev 3ds-portlibs || true
           # SDL2 portlibs live in the dkp-3ds-portlibs package group

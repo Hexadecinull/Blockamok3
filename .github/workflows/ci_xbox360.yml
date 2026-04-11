@@ -11,15 +11,11 @@ on:
     branches: [main, master, develop]
   workflow_dispatch:
 
-# libxenon has no pre-built Docker image; we build the toolchain from source
-# and cache it. Cold build ~25–35 min; subsequent runs use the cache (~2 min).
-# The job uses continue-on-error so toolchain availability doesn't break CI.
-
 jobs:
   build:
     name: Build Xbox 360 (libxenon)
     runs-on: ubuntu-24.04
-    continue-on-error: true   # toolchain build can be flaky on CI infra
+    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -37,20 +33,33 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /usr/local/xenon
-          key: libxenon-toolchain-v5-${{ runner.os }}
+          key: libxenon-toolchain-v6-${{ runner.os }}
 
-      - name: Build libxenon toolchain
+      - name: Try downloading prebuilt xenon toolchain
+        id: prebuilt
         if: steps.cache-xenon.outputs.cache-hit != 'true'
-        timeout-minutes: 45
         run: |
           PREFIX=/usr/local/xenon
           sudo mkdir -p $PREFIX && sudo chown $USER:$USER $PREFIX
 
+          # Try Free60Project prebuilt release (x86_64 Linux host)
+          RELEASE_URL="https://github.com/Free60Project/libxenon/releases/download/toolchain-20231010/xenon-toolchain-linux-x86_64.tar.gz"
+          echo "Attempting prebuilt toolchain download..."
+          if curl -sSfL "$RELEASE_URL" | tar -xz -C $PREFIX --strip-components=1 2>/dev/null; then
+            echo "prebuilt=true" >> $GITHUB_OUTPUT
+            echo "✅ Prebuilt toolchain installed"
+          else
+            echo "prebuilt=false" >> $GITHUB_OUTPUT
+            echo "Prebuilt not available, will build from source"
+          fi
+
+      - name: Build libxenon toolchain from source
+        if: steps.cache-xenon.outputs.cache-hit != 'true' && steps.prebuilt.outputs.prebuilt != 'true'
+        timeout-minutes: 50
+        run: |
+          PREFIX=/usr/local/xenon
           git clone --depth=1 https://github.com/Free60Project/libxenon.git /tmp/libxenon
           cd /tmp/libxenon
-
-          # The repo root Makefile builds the full toolchain + libs
-          # CROSS_INSTALL_PREFIX controls where binaries go
           CROSS_INSTALL_PREFIX=$PREFIX make -j$(nproc) toolchain 2>&1 | tail -100
           CROSS_INSTALL_PREFIX=$PREFIX make -j$(nproc) install  2>&1 | tail -50
 
@@ -58,25 +67,25 @@ jobs:
         run: echo "/usr/local/xenon/bin" >> $GITHUB_PATH
 
       - name: Verify toolchain
-        run: powerpc64-xenon-elf-gcc --version || echo "Toolchain not built – skipping game build"
+        run: |
+          powerpc64-xenon-elf-gcc --version \
+            || (echo "::warning::powerpc64-xenon-elf-gcc not available"; exit 1)
 
       - name: Build Blockamok for Xbox 360
         run: |
           if command -v powerpc64-xenon-elf-gcc &>/dev/null; then
-            XENON_DIR=/usr/local/xenon make -f Makefiles/Makefile_xbox360 -j$(nproc)
+            make -f Makefiles/Makefile_xbox360 XENON_DIR=/usr/local/xenon -j$(nproc)
           else
-            echo "::warning::powerpc64-xenon-elf-gcc not available – toolchain build likely failed or timed out. No artifact produced."
+            echo "::warning::powerpc64-xenon-elf-gcc not available – toolchain unavailable."
             exit 0
           fi
 
       - name: Verify output
-        run: ls -lh *.xex *.elf32 2>/dev/null || true
+        run: ls -lh *.xex 2>/dev/null || echo "No output produced"
 
       - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-xbox360
-          path: |
-            *.xex
-            *.elf32
+          path: '*.xex'
           retention-days: 14
           if-no-files-found: warn

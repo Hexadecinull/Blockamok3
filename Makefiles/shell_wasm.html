@@ -132,32 +132,10 @@
     #vpad-landscape .btn-b { width: 56px; height: 56px; font-size: 14px; }
     #vpad-landscape .btn-sys { width: 50px; height: 30px; font-size: 10px !important; border-radius: 6px !important; }
 
-    /* ── Tap-to-start overlay ─────────────────────────────── */
-    #tap-overlay {
-      position: fixed; inset: 0; z-index: 300;
-      background: rgba(0,0,0,.82);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      cursor: pointer; touch-action: manipulation;
-    }
-    #tap-overlay h1 {
-      color: #4ef; font-family: monospace; font-size: clamp(22px,5vw,42px);
-      letter-spacing: 3px; margin-bottom: 12px; text-align: center;
-    }
-    #tap-overlay p {
-      color: #aaa; font-family: monospace; font-size: clamp(13px,3vw,18px);
-      text-align: center;
-    }
-    #tap-overlay.hidden { display: none; }
   </style>
 </head>
 <body>
 
-  <!-- Tap-to-start overlay: unlocks AudioContext on mobile + desktop -->
-  <div id="tap-overlay">
-    <h1>BLOCKAMOK REMIX</h1>
-    <p>TAP / CLICK TO START</p>
-  </div>
   <!-- Performance banner -->
   <div id="perf-banner">
     ⚠ Low performance detected.
@@ -411,33 +389,30 @@
     }
   </script>
 
-    /* ── Tap-to-start: unlock audio and hide overlay ──────── */
+    /* ── Silent AudioContext unlock on first user interaction ─
+       Browsers block audio until the user interacts with the page.
+       This listener fires once on the first keypress/click/touch,
+       resumes SDL2's AudioContext, and removes itself. No UI shown. */
     (function() {
-      var overlay = document.getElementById('tap-overlay');
-      function unlock() {
-        // Resume any suspended AudioContext (required by browsers after autoplay policy)
-        if (typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined') {
-          var AC = window.AudioContext || window.webkitAudioContext;
-          // Emscripten creates its context on Module — try to resume it
-          try {
-            var ctx = Module.SDL2 && Module.SDL2.audioContext;
-            if (ctx && ctx.state === 'suspended') ctx.resume();
-          } catch(e) {}
-          // Also resume any context Emscripten registered globally
-          if (window.AudioContext) {
-            document.querySelectorAll('audio').forEach(function(a) {
-              try { a.play(); } catch(e) {}
-            });
+      function unlockAudio() {
+        try {
+          /* SDL2_mixer/Emscripten stores the AudioContext here */
+          var ctx = Module.SDL2 && Module.SDL2.audioContext;
+          if (ctx && ctx.state !== 'running') {
+            ctx.resume().catch(function(){});
           }
-        }
-        overlay.classList.add('hidden');
-        // Focus canvas so keyboard events work immediately
-        Module.canvas.focus();
-        overlay.removeEventListener('click',     unlock);
-        overlay.removeEventListener('touchstart', unlock);
+        } catch(e) {}
+        /* Also attempt any AudioContext stored under the global SDL2 object */
+        try {
+          if (window.SDL2 && window.SDL2.audioContext) {
+            window.SDL2.audioContext.resume().catch(function(){});
+          }
+        } catch(e) {}
       }
-      overlay.addEventListener('click',      unlock, { once: true });
-      overlay.addEventListener('touchstart', unlock, { once: true, passive: true });
+      var opts = { once: true, capture: true, passive: true };
+      document.addEventListener('keydown',    unlockAudio, opts);
+      document.addEventListener('mousedown',  unlockAudio, opts);
+      document.addEventListener('touchstart', unlockAudio, opts);
     })();
 
   {{{ SCRIPT }}}

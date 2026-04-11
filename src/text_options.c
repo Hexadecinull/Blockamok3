@@ -455,11 +455,15 @@ static void optionCallback_Music() {
 }
 
 static void optionCallback_MusicVolume() {
+#ifndef XBOX
 	Mix_VolumeMusic((int)(OPTION_MUSIC_VOLUME * MIX_MAX_VOLUME / 5.0f));
+#endif
 }
 
 static void optionCallback_SFXVolume() {
+#ifndef XBOX
 	Mix_Volume(-1, (int)(OPTION_SFX_VOLUME * MIX_MAX_VOLUME / 5.0f));
+#endif
 }
 
 void optionCallback_All() {

@@ -30,9 +30,9 @@ jobs:
 
       - name: Install 3DS dev tools
         run: |
-          dkp-pacman -S --noconfirm --needed 3ds-dev || true
-          dkp-pacman -S --noconfirm --needed 3ds-sdl2 3ds-sdl2_mixer 3ds-sdl2_ttf || \
-            echo "Warning: 3DS SDL2 portlibs unavailable in current repo snapshot"
+          dkp-pacman -S --noconfirm --needed 3ds-dev 3ds-portlibs || true
+          # SDL2 portlibs live in the dkp-3ds-portlibs package group
+          dkp-pacman -S --noconfirm --needed             3ds-sdl2 3ds-sdl2_mixer 3ds-sdl2_ttf             3ds-libogg 3ds-libvorbis 3ds-mikmod ||             echo "Warning: 3DS SDL2 portlibs unavailable in current repo snapshot"
 
       - name: Symlink Makefile for devkitPro recursive build
         # Makefile_3ds calls: $(MAKE) -C $(BUILD) -f $(CURDIR)/Makefile

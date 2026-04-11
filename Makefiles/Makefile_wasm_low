@@ -1,0 +1,54 @@
+# Blockamok Remix – Emscripten low-end WebAssembly build
+# Size-optimised, simplified background, reduced draw overhead.
+# Output: web/index-low.html and associated assets (index-low.js, index-low.wasm, etc.)
+
+OBJ_DIR  := build_wasm_low
+WEB_DIR  := web
+TARGET   := $(WEB_DIR)/index-low.html
+
+SRC_DIR  := src
+SRCS     := $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/**/*.c)
+OBJS     := $(SRCS:%.c=$(OBJ_DIR)/%.o)
+
+CC       := emcc
+
+CFLAGS := \
+    -Os -Wall \
+    -DPC -D__EMSCRIPTEN__ \
+    -DLOW_SPEC_BG -DFORCE_DRAW_OVERLAY \
+    --use-port=sdl2 \
+    --use-port=sdl2_mixer \
+    --use-port=sdl2_ttf \
+    -sASYNCIFY=1 \
+    -sFULL_ES2=1
+
+LDFLAGS := \
+    --use-port=sdl2 \
+    --use-port=sdl2_mixer \
+    --use-port=sdl2_ttf \
+    -sASYNCIFY=1 \
+    -sFULL_ES2=1 \
+    -sALLOW_MEMORY_GROWTH=1 \
+    -sINITIAL_MEMORY=33554432 \
+    -sEXIT_RUNTIME=0 \
+    -lidbfs.js \
+    --shell-file Makefiles/shell_wasm.html \
+    --preload-file Mono.ttf \
+    -o $(TARGET)
+
+.PHONY: all clean web_dir
+
+all: web_dir $(TARGET)
+
+web_dir:
+	mkdir -p $(WEB_DIR) $(OBJ_DIR)/$(SRC_DIR)/audio $(OBJ_DIR)/$(SRC_DIR)/fonts
+
+$(TARGET): $(OBJS)
+	$(CC) $(OBJS) $(LDFLAGS)
+
+$(OBJ_DIR)/%.o: %.c
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -rf $(OBJ_DIR) $(WEB_DIR)/index-low.*

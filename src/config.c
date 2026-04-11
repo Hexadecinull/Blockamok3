@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#endif
 #if defined(_WIN32)
 #include <windows.h>
 #elif defined(LINUX) || defined(GAMECUBE) || defined(THREEDS)
@@ -235,10 +238,8 @@ void writeSaveData() {
     fclose(file);
 #if defined(__EMSCRIPTEN__)
     /* Flush IDBFS to IndexedDB so save persists across page reloads */
-    EM_ASM(
-      FS.syncfs(false, function(err) {
-        if (err) console.error("IDBFS write sync error:", err);
-      });
+    emscripten_run_script(
+      "FS.syncfs(false,function(e){if(e)console.error('IDBFS sync:',e);});"
     );
 #endif
   }

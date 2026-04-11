@@ -397,14 +397,10 @@ int main(int argc, char *argv[]) {
 #ifdef __EMSCRIPTEN__
   /* Mount IDBFS so that save.bin persists in IndexedDB across page reloads.
      The directory name matches rootDir set by initFilePaths() for Emscripten. */
-  EM_ASM(
-    try { FS.mkdir('/blockamok'); } catch(e) {}
-    FS.mount(IDBFS, {}, '/blockamok');
-    /* Populate from IndexedDB — fire-and-forget; data arrives before first readSaveData
-       because emscripten_set_main_loop has not been called yet. */
-    FS.syncfs(true, function(err) {
-      if (err) console.warn('IDBFS initial sync:', err);
-    });
+  emscripten_run_script(
+    "try{FS.mkdir('/blockamok')}catch(e){}"
+    ";FS.mount(IDBFS,{},'\/blockamok')"
+    ";FS.syncfs(true,function(e){if(e)console.warn('IDBFS init:',e);});"
   );
   /* SDL_GetCurrentDisplayMode is unreliable in the browser.
      Pass 0,0 and let loadConfig fall back to its Emscripten default. */

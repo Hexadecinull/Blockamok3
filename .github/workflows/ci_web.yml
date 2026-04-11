@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/**'
       - 'Makefiles/Makefile_wasm'
+      - 'Makefiles/Makefile_wasm_low'
       - 'Makefiles/shell_wasm.html'
       - '.github/workflows/ci_web.yml'
   pull_request:
@@ -29,14 +30,20 @@ jobs:
       - name: Verify emcc
         run: emcc --version
 
-      - name: Build WASM
+      - name: Build WASM (normal)
         run: make -f Makefiles/Makefile_wasm -j$(nproc)
+
+      - name: Build WASM (low-end)
+        run: make -f Makefiles/Makefile_wasm_low -j$(nproc)
 
       - name: Verify output files
         run: |
-          test -f web/index.html  && echo "✅ index.html"  || (echo "❌ index.html missing";  exit 1)
-          test -f web/index.js    && echo "✅ index.js"    || (echo "❌ index.js missing";    exit 1)
-          test -f web/index.wasm  && echo "✅ index.wasm"  || (echo "❌ index.wasm missing";  exit 1)
+          test -f web/index.html      && echo "✅ index.html"      || (echo "❌ index.html missing";      exit 1)
+          test -f web/index.js        && echo "✅ index.js"        || (echo "❌ index.js missing";        exit 1)
+          test -f web/index.wasm      && echo "✅ index.wasm"      || (echo "❌ index.wasm missing";      exit 1)
+          test -f web/index-low.html  && echo "✅ index-low.html"  || (echo "❌ index-low.html missing";  exit 1)
+          test -f web/index-low.js    && echo "✅ index-low.js"    || (echo "❌ index-low.js missing";    exit 1)
+          test -f web/index-low.wasm  && echo "✅ index-low.wasm"  || (echo "❌ index-low.wasm missing";  exit 1)
           ls -lh web/
 
       - uses: actions/upload-artifact@v4
@@ -45,15 +52,13 @@ jobs:
           path: web/
           retention-days: 30
 
-  # Deploy to GitHub Pages on push to main/master.
+  # Deploy both normal + low-end to GitHub Pages on push to main/master.
   # Requires: repository Settings → Pages → Source → GitHub Actions.
-  # If Pages is not yet enabled, this job is skipped gracefully.
   deploy-pages:
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-24.04
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    # Skip this entire job if Pages isn't configured rather than failing CI
     continue-on-error: true
 
     permissions:
@@ -75,7 +80,6 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
-          # Auto-enable Pages if it isn't already configured
           enablement: true
 
       - name: Upload to Pages

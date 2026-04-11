@@ -9,23 +9,129 @@
     body { background: #111; display: flex; flex-direction: column;
            align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
     #canvas-wrap { position: relative; }
-    canvas.emscripten { display: block; border: none; cursor: crosshair; }
+    canvas.emscripten { display: block; border: none; cursor: crosshair; touch-action: none; }
     #status { color: #7cf; font-family: monospace; font-size: 14px;
               margin-top: 10px; min-height: 20px; }
     #progress { width: 300px; height: 6px; background: #333; border-radius: 3px;
                 margin-top: 6px; overflow: hidden; }
     #progress-bar { height: 100%; background: #4ef; width: 0%; transition: width .1s; }
+
+    /* ── Performance banner ─────────────────────────────────── */
+    #perf-banner {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: #1a1a2e; border-bottom: 1px solid #4ef;
+      color: #ccc; font-family: monospace; font-size: 13px;
+      padding: 8px 16px; display: flex; align-items: center; gap: 12px;
+      justify-content: center; display: none;
+    }
+    #perf-banner a { color: #4ef; cursor: pointer; text-decoration: underline; }
+
+    /* ── Virtual gamepad ─────────────────────────────────────── */
+    #vpad {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+      display: none; pointer-events: none;
+      padding: 12px 20px 20px;
+      background: linear-gradient(to top, rgba(0,0,0,.7) 0%, transparent 100%);
+    }
+    #vpad-inner {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      max-width: 480px; margin: 0 auto;
+    }
+    /* D-pad */
+    #dpad {
+      display: grid; grid-template-columns: repeat(3, 52px);
+      grid-template-rows: repeat(3, 52px); gap: 3px;
+      pointer-events: all;
+    }
+    .dpad-btn {
+      background: rgba(255,255,255,.15); border: 2px solid rgba(255,255,255,.3);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      font-size: 20px; color: rgba(255,255,255,.8); user-select: none;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+      transition: background .08s;
+    }
+    .dpad-btn:active, .dpad-btn.pressed { background: rgba(78,239,255,.45); }
+    .dpad-center { background: rgba(255,255,255,.06); border-color: transparent; }
+
+    /* Action buttons */
+    #abtn-group {
+      display: flex; flex-direction: column; gap: 10px; align-items: flex-end;
+      pointer-events: all;
+    }
+    .action-btn {
+      width: 60px; height: 60px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.3);
+      display: flex; align-items: center; justify-content: center;
+      font-family: monospace; font-size: 13px; font-weight: bold;
+      color: rgba(255,255,255,.85); user-select: none; cursor: pointer;
+      -webkit-tap-highlight-color: transparent; transition: background .08s;
+    }
+    .action-btn:active, .action-btn.pressed { filter: brightness(1.4); }
+    #btn-a  { background: rgba(0,180,80,.35);  border-color: rgba(0,220,100,.5); }
+    #btn-b  { background: rgba(200,30,30,.35); border-color: rgba(240,60,60,.5); }
+    #btn-st { background: rgba(78,239,255,.2); border-color: rgba(78,239,255,.4);
+              width: 48px; height: 48px; font-size: 11px; }
   </style>
 </head>
 <body>
+  <!-- Performance suggestion banner (shown after first frame if FPS low) -->
+  <div id="perf-banner">
+    ⚠ Low performance detected.
+    <a id="perf-link" href="#">Switch to Low-End mode</a>
+    <span style="color:#666">|</span>
+    <a onclick="document.getElementById('perf-banner').style.display='none'" style="color:#888">Dismiss</a>
+  </div>
+
   <div id="canvas-wrap">
     <canvas class="emscripten" id="canvas" tabindex="1" oncontextmenu="event.preventDefault()"></canvas>
   </div>
   <div id="status">Loading…</div>
   <div id="progress"><div id="progress-bar"></div></div>
 
+  <!-- Virtual gamepad (mobile only) -->
+  <div id="vpad">
+    <div id="vpad-inner">
+      <div id="dpad">
+        <div></div>
+        <div class="dpad-btn" data-key="ArrowUp"   data-code="ArrowUp">▲</div>
+        <div></div>
+        <div class="dpad-btn" data-key="ArrowLeft"  data-code="ArrowLeft">◀</div>
+        <div class="dpad-btn dpad-center" data-key="Return" data-code="Enter">●</div>
+        <div class="dpad-btn" data-key="ArrowRight" data-code="ArrowRight">▶</div>
+        <div></div>
+        <div class="dpad-btn" data-key="ArrowDown"  data-code="ArrowDown">▼</div>
+        <div></div>
+      </div>
+      <div id="abtn-group">
+        <div id="btn-st" class="action-btn" data-key="Return" data-code="Enter">START</div>
+        <div style="display:flex;gap:10px">
+          <div id="btn-b" class="action-btn" data-key="Escape" data-code="Escape">B</div>
+          <div id="btn-a" class="action-btn" data-key="Shift"  data-code="ShiftLeft">A</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
-    var statusEl = document.getElementById('status');
+    /* ── Determine if this is a low-end build ─────────────────── */
+    var IS_LOW_END = !!document.currentScript && document.currentScript.src.indexOf('low') !== -1
+                    || window.location.pathname.indexOf('low') !== -1;
+
+    /* ── Low-end switch link ─────────────────────────────────── */
+    (function() {
+      var link = document.getElementById('perf-link');
+      var cur = window.location.pathname;
+      var base = cur.replace(/\/[^/]*$/, '/');
+      if (IS_LOW_END) {
+        link.textContent = 'Switch to Normal mode';
+        link.href = base + 'index.html';
+      } else {
+        link.href = base + 'index-low.html';
+      }
+    })();
+
+    /* ── Status / progress ───────────────────────────────────── */
+    var statusEl   = document.getElementById('status');
     var progressBar = document.getElementById('progress-bar');
 
     var Module = {
@@ -39,18 +145,117 @@
       onRuntimeInitialized: function() {
         statusEl.style.display = 'none';
         document.getElementById('progress').style.display = 'none';
+        startFPSWatch();
       }
     };
 
-    // Resize canvas to fill available space while keeping aspect ratio
+    /* ── Canvas resize ───────────────────────────────────────── */
     function resizeCanvas() {
-      var vw = window.innerWidth, vh = window.innerHeight;
+      var vw = window.innerWidth;
+      var vh = window.innerHeight - (isMobile() ? 170 : 0); /* leave room for vpad */
       var size = Math.min(vw, vh);
       Module.canvas.style.width  = size + 'px';
       Module.canvas.style.height = size + 'px';
     }
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
+
+    /* ── Mobile detection ────────────────────────────────────── */
+    function isMobile() {
+      return /Mobi|Android|iPhone|iPad|iPod|Touch/i.test(navigator.userAgent)
+             || (navigator.maxTouchPoints > 1 && window.innerWidth < 1024);
+    }
+
+    /* ── Virtual gamepad ─────────────────────────────────────── */
+    function initVpad() {
+      if (!isMobile()) return;
+      var vpad = document.getElementById('vpad');
+      vpad.style.display = 'block';
+      resizeCanvas();
+
+      /* Dispatch a synthetic SDL-visible keyboard event */
+      function fire(type, key, code) {
+        var evt = new KeyboardEvent(type, {
+          key: key, code: code, bubbles: true, cancelable: true,
+          keyCode: keyCodeFor(code), which: keyCodeFor(code)
+        });
+        Module.canvas.dispatchEvent(evt);
+      }
+
+      function keyCodeFor(code) {
+        var map = { ArrowUp:38, ArrowDown:40, ArrowLeft:37, ArrowRight:39,
+                    Enter:13, ShiftLeft:16, Escape:27 };
+        return map[code] || 0;
+      }
+
+      /* Track active touches per button */
+      var activeMap = {};
+
+      function pressBtn(el) {
+        el.classList.add('pressed');
+        fire('keydown', el.dataset.key, el.dataset.code);
+      }
+      function releaseBtn(el) {
+        el.classList.remove('pressed');
+        fire('keyup', el.dataset.key, el.dataset.code);
+      }
+
+      function onTouchStart(e) {
+        e.preventDefault();
+        Array.from(e.changedTouches).forEach(function(t) {
+          var el = document.elementFromPoint(t.clientX, t.clientY);
+          if (el && el.dataset.code) {
+            activeMap[t.identifier] = el;
+            pressBtn(el);
+          }
+        });
+      }
+      function onTouchEnd(e) {
+        e.preventDefault();
+        Array.from(e.changedTouches).forEach(function(t) {
+          var el = activeMap[t.identifier];
+          if (el) { releaseBtn(el); delete activeMap[t.identifier]; }
+        });
+      }
+      function onTouchMove(e) {
+        e.preventDefault();
+        Array.from(e.changedTouches).forEach(function(t) {
+          var newEl = document.elementFromPoint(t.clientX, t.clientY);
+          var oldEl = activeMap[t.identifier];
+          if (newEl !== oldEl) {
+            if (oldEl && oldEl.dataset.code) releaseBtn(oldEl);
+            if (newEl && newEl.dataset.code) { pressBtn(newEl); activeMap[t.identifier] = newEl; }
+            else delete activeMap[t.identifier];
+          }
+        });
+      }
+
+      vpad.addEventListener('touchstart', onTouchStart, { passive: false });
+      vpad.addEventListener('touchend',   onTouchEnd,   { passive: false });
+      vpad.addEventListener('touchcancel',onTouchEnd,   { passive: false });
+      vpad.addEventListener('touchmove',  onTouchMove,  { passive: false });
+    }
+    initVpad();
+
+    /* ── FPS watchdog (show low-end banner if avg < 30 fps) ─── */
+    function startFPSWatch() {
+      if (IS_LOW_END) return; /* don't show banner in low-end build */
+      var frames = 0, startT = performance.now(), shown = false;
+      var raf;
+      function tick() {
+        frames++;
+        if (performance.now() - startT > 5000) {
+          var fps = frames / 5;
+          if (fps < 30 && !shown) {
+            document.getElementById('perf-banner').style.display = 'flex';
+            shown = true;
+          }
+          return; /* stop after first measurement */
+        }
+        raf = requestAnimationFrame(tick);
+      }
+      raf = requestAnimationFrame(tick);
+    }
   </script>
   {{{ SCRIPT }}}
 </body>

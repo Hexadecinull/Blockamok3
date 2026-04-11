@@ -39,7 +39,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /usr/local/ps3dev
-          key: ps3toolchain-v5-${{ runner.os }}
+          key: ps3toolchain-v6-${{ runner.os }}
 
       - name: Build ps3toolchain
         if: steps.cache-ps3dev.outputs.cache-hit != 'true'

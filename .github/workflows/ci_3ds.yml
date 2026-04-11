@@ -49,6 +49,10 @@ jobs:
         continue-on-error: true
         run: |
           export PKG_CONFIG_PATH="$DEVKITPRO/portlibs/3ds/lib/pkgconfig:$DEVKITPRO/portlibs/armv6k/lib/pkgconfig"
+          # Manually inject SDL2 include paths in case pkg-config fails due to missing portlibs.
+          # devkitpro 3DS portlibs install SDL headers to portlibs/3ds/include/SDL2/,
+          # but our source uses <SDL.h> (no SDL2 prefix), so we add both paths.
+          export CFLAGS="${CFLAGS} -I${DEVKITPRO}/portlibs/3ds/include/SDL2 -I${DEVKITPRO}/portlibs/3ds/include"
           make -j$(nproc)
 
       - name: Verify output

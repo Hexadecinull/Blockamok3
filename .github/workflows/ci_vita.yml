@@ -59,7 +59,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/vita-sdl-installed
-          key: vita-sdl2-packages-v3
+          key: vita-sdl2-packages-v4
 
       - name: Install SDL2 / mixer / ttf for Vita
         if: steps.cache-vita-sdl.outputs.cache-hit != 'true'
@@ -68,13 +68,13 @@ jobs:
           export PATH=$VITASDK/bin:$PATH
           export PKG_CONFIG_PATH=$VITASDK/arm-vita-eabi/lib/pkgconfig
           cd /tmp/vdpm
-          ./vdpm SDL2
-          ./vdpm SDL2_mixer
-          ./vdpm SDL2_ttf
-          # Verify install
-          $VITASDK/bin/arm-vita-eabi-pkg-config --modversion sdl2 || true
-          $VITASDK/bin/arm-vita-eabi-pkg-config --modversion SDL2_mixer || true
-          $VITASDK/bin/arm-vita-eabi-pkg-config --modversion SDL2_ttf || true
+          ./vdpm SDL2        || echo "vdpm SDL2 failed"
+          ./vdpm SDL2_mixer  || echo "vdpm SDL2_mixer failed"
+          ./vdpm SDL2_ttf    || echo "vdpm SDL2_ttf failed"
+          # Verify — abort step if any key library is missing
+          $VITASDK/bin/arm-vita-eabi-pkg-config --modversion sdl2             && echo "✅ sdl2 ok" || (echo "❌ sdl2 not found"; exit 1)
+          $VITASDK/bin/arm-vita-eabi-pkg-config --modversion SDL2_mixer             && echo "✅ SDL2_mixer ok" || (echo "❌ SDL2_mixer not found"; exit 1)
+          $VITASDK/bin/arm-vita-eabi-pkg-config --modversion SDL2_ttf             && echo "✅ SDL2_ttf ok" || (echo "❌ SDL2_ttf not found"; exit 1)
           touch /tmp/vita-sdl-installed
 
       - name: Build VPK

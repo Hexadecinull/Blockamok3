@@ -238,8 +238,10 @@ void writeSaveData() {
     fclose(file);
 #if defined(__EMSCRIPTEN__)
     /* Flush IDBFS to IndexedDB so save persists across page reloads */
+    /* Only sync if IDBFS initial populate is complete; skip if still in flight. */
     emscripten_run_script(
-      "FS.syncfs(false,function(e){if(e)console.error('IDBFS sync:',e);});"
+      "if(window.__idbfsReady)"
+      "  FS.syncfs(false,function(e){if(e)console.error('IDBFS sync:',e);});"
     );
 #endif
   }

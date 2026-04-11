@@ -37,7 +37,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /usr/local/xenon
-          key: libxenon-toolchain-v4-${{ runner.os }}
+          key: libxenon-toolchain-v5-${{ runner.os }}
 
       - name: Build libxenon toolchain
         if: steps.cache-xenon.outputs.cache-hit != 'true'

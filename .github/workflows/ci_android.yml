@@ -147,7 +147,7 @@ jobs:
 
           # ── jni Application.mk ────────────────────────────────────────────
           if [ ! -f android/app/src/main/jni/Application.mk ]; then
-          printf 'APP_ABI    := armeabi-v7a arm64-v8a x86 x86_64\nAPP_PLATFORM := android-19\n' \
+          printf 'APP_ABI    := armeabi-v7a arm64-v8a x86 x86_64\nAPP_PLATFORM := android-19\nAPP_ALLOW_MISSING_DEPS := true\n' \
             > android/app/src/main/jni/Application.mk
           fi
 

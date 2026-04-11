@@ -21,10 +21,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Sync dkp-pacman databases with retry
+        # pkg.devkitpro.org CDN occasionally returns 403; retry a few times before giving up.
+        continue-on-error: true
+        run: |
+          dkp-pacman -Sy --noconfirm 2>/dev/null ||           (sleep 20 && dkp-pacman -Sy --noconfirm 2>/dev/null) ||           (sleep 40 && dkp-pacman -Sy --noconfirm 2>/dev/null) ||           (sleep 60 && dkp-pacman -Sy --noconfirm)
+
       - name: Install switch-portlibs
         run: |
-          dkp-pacman -Sy --noconfirm \
-            switch-portlibs switch-sdl2 switch-sdl2_mixer switch-sdl2_ttf
+          dkp-pacman -S --noconfirm --needed             switch-portlibs switch-sdl2 switch-sdl2_mixer switch-sdl2_ttf ||             echo "Warning: switch SDL2 portlibs unavailable – CDN may be down"
 
       - name: Build
         run: make -f Makefiles/Makefile_switch -j$(nproc)

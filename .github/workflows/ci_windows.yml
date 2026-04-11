@@ -172,6 +172,13 @@ jobs:
           Copy-Item "SDL2\SDL2_mixer\lib\x64\SDL2_mixer.dll" $out -Force
           Copy-Item "SDL2\SDL2_ttf\lib\x64\SDL2_ttf.dll"     $out -Force
 
+      - name: Rename exe to BlockamokRemix.exe
+        shell: pwsh
+        run: |
+          if (Test-Path "x64\Release\blockamok.exe") {
+            Copy-Item "x64\Release\blockamok.exe" "x64\Release\BlockamokRemix.exe" -Force
+          }
+
       - uses: actions/upload-artifact@v4
         with:
           name: blockamokremix-windows-vs2022-x64

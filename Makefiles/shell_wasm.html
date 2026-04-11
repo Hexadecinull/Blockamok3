@@ -131,9 +131,33 @@
     #vpad-landscape .btn-a,
     #vpad-landscape .btn-b { width: 56px; height: 56px; font-size: 14px; }
     #vpad-landscape .btn-sys { width: 50px; height: 30px; font-size: 10px !important; border-radius: 6px !important; }
+
+    /* ── Tap-to-start overlay ─────────────────────────────── */
+    #tap-overlay {
+      position: fixed; inset: 0; z-index: 300;
+      background: rgba(0,0,0,.82);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      cursor: pointer; touch-action: manipulation;
+    }
+    #tap-overlay h1 {
+      color: #4ef; font-family: monospace; font-size: clamp(22px,5vw,42px);
+      letter-spacing: 3px; margin-bottom: 12px; text-align: center;
+    }
+    #tap-overlay p {
+      color: #aaa; font-family: monospace; font-size: clamp(13px,3vw,18px);
+      text-align: center;
+    }
+    #tap-overlay.hidden { display: none; }
   </style>
 </head>
 <body>
+
+  <!-- Tap-to-start overlay: unlocks AudioContext on mobile + desktop -->
+  <div id="tap-overlay">
+    <h1>BLOCKAMOK REMIX</h1>
+    <p>TAP / CLICK TO START</p>
+  </div>
   <!-- Performance banner -->
   <div id="perf-banner">
     ⚠ Low performance detected.
@@ -170,7 +194,7 @@
           <div class="btn btn-a" data-code="ShiftLeft">A</div>
         </div>
         <div id="btn-row-sys">
-          <div class="btn btn-sys" data-code="Tab">SEL</div>
+          <div class="btn btn-sys" data-code="Backspace">SEL</div>
           <div class="btn btn-sys" data-code="Enter">START</div>
         </div>
       </div>
@@ -199,7 +223,7 @@
         <div class="btn btn-a" data-code="ShiftLeft">A</div>
       </div>
       <div id="btn-row-sys-land">
-        <div class="btn btn-sys" data-code="Tab">SEL</div>
+        <div class="btn btn-sys" data-code="Backspace">SEL</div>
         <div class="btn btn-sys" data-code="Enter">START</div>
       </div>
     </div>
@@ -222,6 +246,15 @@
 
     var Module = {
       canvas: document.getElementById('canvas'),
+      print: function(text) {
+        /* Filter out the known-harmless pre-mainloop timing warning from SDL2's eglSwapInterval */
+        if (text.indexOf('emscripten_set_main_loop_timing') !== -1) return;
+        console.log(text);
+      },
+      printErr: function(text) {
+        if (text.indexOf('emscripten_set_main_loop_timing') !== -1) return;
+        console.warn(text);
+      },
       setStatus: function(text) {
         if (!text) { statusEl.style.display = 'none'; return; }
         statusEl.textContent = text;
@@ -250,27 +283,33 @@
     function layout() {
       var vw = window.innerWidth;
       var vh = window.innerHeight;
-      var portraitEl   = document.getElementById('vpad-portrait');
-      var landscapeEl  = document.getElementById('vpad-landscape');
+      var portraitEl  = document.getElementById('vpad-portrait');
+      var landscapeEl = document.getElementById('vpad-landscape');
 
       if (!MOBILE) {
-        /* Desktop: full viewport for canvas, no pad */
         var sz = Math.min(vw, vh);
         Module.canvas.style.width  = sz + 'px';
         Module.canvas.style.height = sz + 'px';
+        portraitEl.style.display  = 'none';
+        landscapeEl.style.display = 'none';
         return;
       }
 
       if (isLandscape()) {
-        /* Landscape: square canvas fills height, side panels hold controls */
-        var sz = vh;
+        /* Landscape: canvas is a square fitting the full viewport height.
+           Side panels (D-pad / buttons) occupy the remaining horizontal space.
+           We keep the canvas square and let CSS flex center it. */
+        var padW = 170; /* approx width for each side panel */
+        var avail = vw - padW * 2;
+        var sz = Math.min(avail, vh);
+        if (sz < 120) sz = vh; /* fallback if screen too narrow */
         Module.canvas.style.width  = sz + 'px';
         Module.canvas.style.height = sz + 'px';
         portraitEl.style.display  = 'none';
         landscapeEl.style.display = 'flex';
       } else {
-        /* Portrait: square canvas fills width, controls stack below */
-        var padH = 180; /* approximate vpad height */
+        /* Portrait: canvas fills width, vpad below */
+        var padH = 190;
         var avail = vh - padH;
         var sz = Math.min(vw, avail);
         Module.canvas.style.width  = sz + 'px';
@@ -289,7 +328,7 @@
     /* ── Virtual gamepad input ──────────────────────────────── */
     var KEY_CODES = {
       ArrowUp: 38, ArrowDown: 40, ArrowLeft: 37, ArrowRight: 39,
-      Enter: 13, ShiftLeft: 16, Escape: 27, Tab: 9
+      Enter: 13, ShiftLeft: 16, Escape: 27, Backspace: 8
     };
 
     function fireKey(type, code) {
@@ -371,6 +410,36 @@
       requestAnimationFrame(tick);
     }
   </script>
+
+    /* ── Tap-to-start: unlock audio and hide overlay ──────── */
+    (function() {
+      var overlay = document.getElementById('tap-overlay');
+      function unlock() {
+        // Resume any suspended AudioContext (required by browsers after autoplay policy)
+        if (typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined') {
+          var AC = window.AudioContext || window.webkitAudioContext;
+          // Emscripten creates its context on Module — try to resume it
+          try {
+            var ctx = Module.SDL2 && Module.SDL2.audioContext;
+            if (ctx && ctx.state === 'suspended') ctx.resume();
+          } catch(e) {}
+          // Also resume any context Emscripten registered globally
+          if (window.AudioContext) {
+            document.querySelectorAll('audio').forEach(function(a) {
+              try { a.play(); } catch(e) {}
+            });
+          }
+        }
+        overlay.classList.add('hidden');
+        // Focus canvas so keyboard events work immediately
+        Module.canvas.focus();
+        overlay.removeEventListener('click',     unlock);
+        overlay.removeEventListener('touchstart', unlock);
+      }
+      overlay.addEventListener('click',      unlock, { once: true });
+      overlay.addEventListener('touchstart', unlock, { once: true, passive: true });
+    })();
+
   {{{ SCRIPT }}}
 </body>
 </html>

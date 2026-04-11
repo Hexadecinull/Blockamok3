@@ -23,6 +23,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Sync dkp-pacman databases with retry
+        continue-on-error: true
         run: |
           dkp-pacman -Sy --noconfirm 2>/dev/null || \
           (sleep 15 && dkp-pacman -Sy --noconfirm 2>/dev/null) || \

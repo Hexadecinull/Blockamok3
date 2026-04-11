@@ -72,9 +72,13 @@ jobs:
           ./vdpm SDL2_mixer  || echo "vdpm SDL2_mixer failed"
           ./vdpm SDL2_ttf    || echo "vdpm SDL2_ttf failed"
           # Verify — abort step if any key library is missing
-          $VITASDK/bin/arm-vita-eabi-pkg-config --modversion sdl2             && echo "✅ sdl2 ok" || (echo "❌ sdl2 not found"; exit 1)
-          $VITASDK/bin/arm-vita-eabi-pkg-config --modversion SDL2_mixer             && echo "✅ SDL2_mixer ok" || (echo "❌ SDL2_mixer not found"; exit 1)
-          $VITASDK/bin/arm-vita-eabi-pkg-config --modversion SDL2_ttf             && echo "✅ SDL2_ttf ok" || (echo "❌ SDL2_ttf not found"; exit 1)
+          PCDIR="$VITASDK/arm-vita-eabi/lib/pkgconfig"
+          test -f "$PCDIR/sdl2.pc" \
+            && echo "✅ sdl2 ok" || (echo "❌ sdl2.pc not found"; exit 1)
+          test -f "$PCDIR/SDL2_mixer.pc" \
+            && echo "✅ SDL2_mixer ok" || (echo "❌ SDL2_mixer.pc not found"; exit 1)
+          test -f "$PCDIR/SDL2_ttf.pc" \
+            && echo "✅ SDL2_ttf ok" || (echo "❌ SDL2_ttf.pc not found"; exit 1)
           touch /tmp/vita-sdl-installed
 
       - name: Build VPK

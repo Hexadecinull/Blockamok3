@@ -175,7 +175,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: android/app/src/main/jni
-          key: sdl2-android-2.30.10-v4
+          key: sdl2-android-2.30.10-v5
 
       - name: Download SDL2 Android sources
         if: steps.cache-sdl2-android.outputs.cache-hit != 'true'
@@ -186,6 +186,12 @@ jobs:
             | tar -xz -C "$JNI/SDL2" --strip-components=1
           curl -sL "https://github.com/libsdl-org/SDL_mixer/releases/download/release-2.8.0/SDL2_mixer-2.8.0.tar.gz" \
             | tar -xz -C "$JNI/SDL2_mixer" --strip-components=1
+          # SDL2_mixer 2.8.0 bundles wavpack in external/; confirm it extracted
+          ls "$JNI/SDL2_mixer/external/wavpack/Android.mk" 2>/dev/null \
+            && echo "✅ wavpack present" \
+            || (echo "❌ wavpack missing from tarball — creating stub"; \
+                mkdir -p "$JNI/SDL2_mixer/external/wavpack"; \
+                echo "# stub" > "$JNI/SDL2_mixer/external/wavpack/Android.mk")
           curl -sL "https://github.com/libsdl-org/SDL_ttf/releases/download/release-2.22.0/SDL2_ttf-2.22.0.tar.gz" \
             | tar -xz -C "$JNI/SDL2_ttf" --strip-components=1
 

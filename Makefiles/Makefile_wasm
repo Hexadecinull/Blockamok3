@@ -39,6 +39,7 @@ LDFLAGS := \
     -sALLOW_MEMORY_GROWTH=1 \
     -sINITIAL_MEMORY=67108864 \
     -sEXIT_RUNTIME=0 \
+    -sWASM_BIGINT=1 \
     -lidbfs.js \
     --shell-file Makefiles/shell_wasm.html \
     --preload-file Mono.ttf \

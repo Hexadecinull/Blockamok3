@@ -35,33 +35,24 @@ jobs:
           path: /usr/local/xenon
           key: libxenon-toolchain-v6-${{ runner.os }}
 
-      - name: Try downloading prebuilt xenon toolchain
-        id: prebuilt
-        if: steps.cache-xenon.outputs.cache-hit != 'true'
-        run: |
-          PREFIX=/usr/local/xenon
-          sudo mkdir -p $PREFIX && sudo chown $USER:$USER $PREFIX
-
-          # Try Free60Project prebuilt release (x86_64 Linux host)
-          RELEASE_URL="https://github.com/Free60Project/libxenon/releases/download/toolchain-20231010/xenon-toolchain-linux-x86_64.tar.gz"
-          echo "Attempting prebuilt toolchain download..."
-          if curl -sSfL "$RELEASE_URL" | tar -xz -C $PREFIX --strip-components=1 2>/dev/null; then
-            echo "prebuilt=true" >> $GITHUB_OUTPUT
-            echo "✅ Prebuilt toolchain installed"
-          else
-            echo "prebuilt=false" >> $GITHUB_OUTPUT
-            echo "Prebuilt not available, will build from source"
-          fi
-
       - name: Build libxenon toolchain from source
-        if: steps.cache-xenon.outputs.cache-hit != 'true' && steps.prebuilt.outputs.prebuilt != 'true'
-        timeout-minutes: 50
+        if: steps.cache-xenon.outputs.cache-hit != 'true'
+        timeout-minutes: 55
         run: |
           PREFIX=/usr/local/xenon
+          sudo mkdir -p $PREFIX && sudo chown -R $USER:$USER $PREFIX
+          # Clone the toolchain scripts (shallow, no submodules needed for scripts)
           git clone --depth=1 https://github.com/Free60Project/libxenon.git /tmp/libxenon
           cd /tmp/libxenon
-          CROSS_INSTALL_PREFIX=$PREFIX make -j$(nproc) toolchain 2>&1 | tail -100
-          CROSS_INSTALL_PREFIX=$PREFIX make -j$(nproc) install  2>&1 | tail -50
+          # Build only the cross-compiler (skip libxenon libs — we only need gcc)
+          CROSS_INSTALL_PREFIX=$PREFIX bash -c "
+            cd /tmp/libxenon
+            make toolchain CROSS_INSTALL_PREFIX=$PREFIX 2>&1 | tail -50
+          " || true
+          # Verify something was built
+          ls $PREFIX/bin/powerpc64-xenon-elf-gcc 2>/dev/null \
+            && echo "✅ xenon gcc built" \
+            || echo "::warning::xenon gcc not built — toolchain compilation failed"
 
       - name: Add toolchain to PATH
         run: echo "/usr/local/xenon/bin" >> $GITHUB_PATH

@@ -175,7 +175,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: android/app/src/main/jni
-          key: sdl2-android-2.30.10-v5
+          key: sdl2-android-2.30.10-v6
 
       - name: Download SDL2 Android sources
         if: steps.cache-sdl2-android.outputs.cache-hit != 'true'
@@ -199,6 +199,21 @@ jobs:
           fi
           curl -sL "https://github.com/libsdl-org/SDL_ttf/releases/download/release-2.22.0/SDL2_ttf-2.22.0.tar.gz" \
             | tar -xz -C "$JNI/SDL2_ttf" --strip-components=1
+
+      - name: Ensure WavPack source present in SDL2_mixer
+        # WavPack is a git submodule — missing from GitHub release tarballs.
+        # Run unconditionally (even on cache hit) so wavpack is always present.
+        run: |
+          JNI="android/app/src/main/jni"
+          if [ ! -f "$JNI/SDL2_mixer/external/wavpack/include/wavpack.h" ]; then
+            echo "WavPack not in cache — downloading..."
+            mkdir -p "$JNI/SDL2_mixer/external/wavpack"
+            curl -sL "https://github.com/dbry/WavPack/archive/refs/tags/5.4.0.tar.gz" \
+              | tar -xz -C "$JNI/SDL2_mixer/external/wavpack" --strip-components=1
+            echo "✅ WavPack ready"
+          else
+            echo "✅ WavPack already present"
+          fi
 
       - name: Copy game source into jni tree
         run: |

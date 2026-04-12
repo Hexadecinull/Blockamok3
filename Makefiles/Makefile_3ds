@@ -57,14 +57,20 @@ CFLAGS	:=	-g -Wall -O2 -mword-relocations \
 			-ffunction-sections \
 			$(ARCH)
 
-CFLAGS	+=	$(INCLUDE) `pkg-config --cflags sdl2 SDL2_ttf SDL2_mixer freetype2` -D__3DS__ -DTHREEDS
+# Add SDL2 include paths explicitly — pkg-config may fail if 3ds-sdl2
+# portlibs are not installed; devkitpro installs SDL.h under include/SDL2/.
+CFLAGS	+=	-I$(DEVKITPRO)/portlibs/3ds/include/SDL2 \
+			-I$(DEVKITPRO)/portlibs/3ds/include
+CFLAGS	+=	$(INCLUDE) $(shell pkg-config --cflags sdl2 SDL2_ttf SDL2_mixer freetype2 2>/dev/null) -D__3DS__ -DTHREEDS
 
 CXXFLAGS	:= $(CFLAGS) -fno-rtti -fexceptions -std=gnu++11
 
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= `pkg-config --libs sdl2 SDL2_ttf SDL2_mixer freetype2` -lxmp -lctru -lm
+LIBS	:= $(shell pkg-config --libs sdl2 SDL2_ttf SDL2_mixer freetype2 2>/dev/null) \
+			-L$(DEVKITPRO)/portlibs/3ds/lib \
+			-lSDL2 -lSDL2_mixer -lSDL2_ttf -lfreetype -lxmp -lctru -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

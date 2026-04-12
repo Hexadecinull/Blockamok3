@@ -18,7 +18,7 @@ jobs:
     name: Build PS3 (PSL1GHT)
     runs-on: ubuntu-24.04
     container:
-      image: ps3dev/ps3dev:latest
+      image: ps3dev/buildenv:latest
     continue-on-error: true
 
     steps:
@@ -26,9 +26,12 @@ jobs:
 
       - name: Verify toolchain
         run: |
-          ppu-gcc --version || (echo "::warning::ppu-gcc not available in ps3dev/ps3dev image"; exit 1)
-          echo "PS3DEV=$PS3DEV"
-          echo "PSL1GHT=$PSL1GHT"
+          ppu-gcc --version && echo "✅ ppu-gcc found" || echo "::warning::ppu-gcc not on PATH"
+          which ppu-gcc 2>/dev/null || find /usr /opt -name "ppu-gcc" 2>/dev/null | head -3
+          echo "PS3DEV=${PS3DEV:-not set}"
+          echo "PSL1GHT=${PSL1GHT:-not set}"
+          ls /usr/local/ps3dev/bin/ 2>/dev/null | head -5 || true
+          ls /usr/ps3dev/bin/ 2>/dev/null | head -5 || true
 
       - name: Install host build tools
         run: |

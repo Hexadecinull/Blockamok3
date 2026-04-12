@@ -387,33 +387,23 @@
       }
       requestAnimationFrame(tick);
     }
-  </script>
 
-    /* ── Silent AudioContext unlock on first user interaction ─
-       Browsers block audio until the user interacts with the page.
-       This listener fires once on the first keypress/click/touch,
-       resumes SDL2's AudioContext, and removes itself. No UI shown. */
+    /* Audio unlock: resume SDL2's AudioContext on first user gesture.
+       Browsers suspend AudioContext until the user interacts — this fires
+       on first keydown/mousedown/touchstart and is then removed. */
     (function() {
       function unlockAudio() {
         try {
-          /* SDL2_mixer/Emscripten stores the AudioContext here */
           var ctx = Module.SDL2 && Module.SDL2.audioContext;
-          if (ctx && ctx.state !== 'running') {
-            ctx.resume().catch(function(){});
-          }
-        } catch(e) {}
-        /* Also attempt any AudioContext stored under the global SDL2 object */
-        try {
-          if (window.SDL2 && window.SDL2.audioContext) {
-            window.SDL2.audioContext.resume().catch(function(){});
-          }
+          if (ctx && ctx.state !== 'running') ctx.resume().catch(function(){});
         } catch(e) {}
       }
-      var opts = { once: true, capture: true, passive: true };
-      document.addEventListener('keydown',    unlockAudio, opts);
-      document.addEventListener('mousedown',  unlockAudio, opts);
-      document.addEventListener('touchstart', unlockAudio, opts);
+      var _o = { once: true, capture: true, passive: true };
+      document.addEventListener('keydown',    unlockAudio, _o);
+      document.addEventListener('mousedown',  unlockAudio, _o);
+      document.addEventListener('touchstart', unlockAudio, _o);
     })();
+  </script>
 
   {{{ SCRIPT }}}
 </body>

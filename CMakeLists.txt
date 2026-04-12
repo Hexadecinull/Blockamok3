@@ -91,11 +91,18 @@ elseif (VITA)
 	set(VITA_TITLEID  "BLOC52665")
 	set(VITA_VERSION  "01.00")
 	
-	PKG_SEARCH_MODULE(SDL2 REQUIRED sdl2)
-	PKG_SEARCH_MODULE(SDL2MIXER REQUIRED SDL2_mixer>=2.0.0)
-	PKG_SEARCH_MODULE(SDL2TTF REQUIRED SDL2_ttf>=2.0.0)
-	INCLUDE_DIRECTORIES(${SDL2_INCLUDE_DIRS} ${SDL2MIXER_INCLUDE_DIRS} ${SDL2TTF_INCLUDE_DIRS})
-	TARGET_LINK_LIBRARIES(blockamokremix ${SDL2_LIBRARIES} ${SDL2MIXER_LIBRARIES} ${SDL2TTF_LIBRARIES})
+	# Use find_library/find_path instead of PKG_SEARCH_MODULE to bypass
+	# transitive dependency checking — vdpm installs SDL2_mixer but its .pc
+	# lists opusfile/vorbisfile/libmodplug as Requires: which aren't present.
+	set(VITA_SYSROOT "${VITASDK}/arm-vita-eabi")
+	find_path(SDL2_INCLUDE_DIR SDL.h PATHS "${VITA_SYSROOT}/include/SDL2" REQUIRED)
+	find_path(SDL2MIXER_INCLUDE_DIR SDL_mixer.h PATHS "${VITA_SYSROOT}/include/SDL2" REQUIRED)
+	find_path(SDL2TTF_INCLUDE_DIR SDL_ttf.h PATHS "${VITA_SYSROOT}/include/SDL2" REQUIRED)
+	find_library(SDL2_LIB SDL2 PATHS "${VITA_SYSROOT}/lib" REQUIRED)
+	find_library(SDL2MIXER_LIB SDL2_mixer PATHS "${VITA_SYSROOT}/lib" REQUIRED)
+	find_library(SDL2TTF_LIB SDL2_ttf PATHS "${VITA_SYSROOT}/lib" REQUIRED)
+	INCLUDE_DIRECTORIES(${SDL2_INCLUDE_DIR} ${SDL2MIXER_INCLUDE_DIR} ${SDL2TTF_INCLUDE_DIR})
+	TARGET_LINK_LIBRARIES(blockamokremix ${SDL2_LIB} ${SDL2MIXER_LIB} ${SDL2TTF_LIB})
 
 	target_link_libraries(blockamokremix
 		SceDisplay_stub

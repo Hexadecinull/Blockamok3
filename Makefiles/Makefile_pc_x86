@@ -16,17 +16,16 @@ CC         := i686-w64-mingw32-g++
 PKG        := pkgconf
 
 # Optimize-for-size, warnings, platform defines,
-# per-function/data sections + LTO,
-# plus SDL2 include flags (static).
+# per-function/data sections (LTO omitted: not enabled in the mingw32 cross-compiler on CI runners)
 CFLAGS     := -Os -Wall -Wextra \
               -DPC -D_WIN32 \
-              -ffunction-sections -fdata-sections -flto=4 \
+              -ffunction-sections -fdata-sections \
               $(shell $(PKG) --static --cflags sdl2)
 
-# Static link against libgcc, SDL2 + extensions + gc-sections + strip + LTO
+# Static link against libgcc, SDL2 + extensions + gc-sections + strip
 LDFLAGS    := -static -static-libgcc \
               $(shell $(PKG) --static --libs sdl2 SDL2_mixer SDL2_ttf) \
-              -Wl,--gc-sections -s -flto
+              -Wl,--gc-sections -s
 
 # ─── Build Rules ──────────────────────────────────────────────────────────────
 .PHONY: all clean

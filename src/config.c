@@ -6,7 +6,7 @@
 #endif
 #if defined(_WIN32)
 #include <windows.h>
-#elif defined(LINUX) || defined(GAMECUBE) || defined(THREEDS)
+#elif defined(LINUX) || defined(GAMECUBE) || defined(THREEDS) || defined(VITA)
 #include <sys/stat.h>
 #endif
 #if defined(WII_U)

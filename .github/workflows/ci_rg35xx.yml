@@ -3,11 +3,6 @@ name: CI – RG35XX / Handheld Linux
 on:
   push:
     branches: [main, master, develop]
-    paths:
-      - 'src/**'
-      - 'Makefiles/make_rg35xx.sh'
-      - 'CMakeLists.txt'
-      - '.github/workflows/ci_rg35xx.yml'
   pull_request:
     branches: [main, master, develop]
   workflow_dispatch:

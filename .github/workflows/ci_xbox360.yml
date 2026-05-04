@@ -3,10 +3,6 @@ name: CI – Xbox 360 (libxenon)
 on:
   push:
     branches: [main, master, develop]
-    paths:
-      - 'src/**'
-      - 'Makefiles/Makefile_xbox360'
-      - '.github/workflows/ci_xbox360.yml'
   pull_request:
     branches: [main, master, develop]
   workflow_dispatch:
@@ -15,7 +11,6 @@ jobs:
   build:
     name: Build Xbox 360 (libxenon)
     runs-on: ubuntu-24.04
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -33,26 +28,30 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /usr/local/xenon
-          key: libxenon-toolchain-v6-${{ runner.os }}
+          key: libxenon-toolchain-v7-${{ runner.os }}
 
       - name: Build libxenon toolchain from source
         if: steps.cache-xenon.outputs.cache-hit != 'true'
-        timeout-minutes: 55
+        timeout-minutes: 90
         run: |
           PREFIX=/usr/local/xenon
           sudo mkdir -p $PREFIX && sudo chown -R $USER:$USER $PREFIX
-          # Clone the toolchain scripts (shallow, no submodules needed for scripts)
+          export PATH=$PATH:$PREFIX/bin
+
+          # Clone libxenon (contains both the toolchain build scripts and the SDK)
           git clone --depth=1 https://github.com/Free60Project/libxenon.git /tmp/libxenon
           cd /tmp/libxenon
-          # Build only the cross-compiler (skip libxenon libs — we only need gcc)
-          CROSS_INSTALL_PREFIX=$PREFIX bash -c "
-            cd /tmp/libxenon
-            make toolchain CROSS_INSTALL_PREFIX=$PREFIX 2>&1 | tail -50
-          " || true
-          # Verify something was built
-          ls $PREFIX/bin/powerpc64-xenon-elf-gcc 2>/dev/null \
+
+          # The libxenon Makefile targets:
+          #   toolchain  – builds binutils + gcc cross-compiler
+          #   libxenon   – builds the xenon SDK libraries
+          # We need both so the final link against -lxenon succeeds.
+          make toolchain CROSS_INSTALL_PREFIX=$PREFIX 2>&1 | tail -100
+          make libxenon  CROSS_INSTALL_PREFIX=$PREFIX 2>&1 | tail -50
+
+          ls $PREFIX/bin/powerpc64-xenon-elf-gcc \
             && echo "✅ xenon gcc built" \
-            || echo "::warning::xenon gcc not built — toolchain compilation failed"
+            || (echo "❌ xenon gcc not found after build"; exit 1)
 
       - name: Add toolchain to PATH
         run: echo "/usr/local/xenon/bin" >> $GITHUB_PATH
@@ -60,19 +59,14 @@ jobs:
       - name: Verify toolchain
         run: |
           powerpc64-xenon-elf-gcc --version \
-            || (echo "::warning::powerpc64-xenon-elf-gcc not available"; exit 1)
+            && echo "✅ toolchain verified" \
+            || (echo "❌ powerpc64-xenon-elf-gcc not available"; exit 1)
 
       - name: Build Blockamok for Xbox 360
-        run: |
-          if command -v powerpc64-xenon-elf-gcc &>/dev/null; then
-            make -f Makefiles/Makefile_xbox360 XENON_DIR=/usr/local/xenon -j$(nproc)
-          else
-            echo "::warning::powerpc64-xenon-elf-gcc not available – toolchain unavailable."
-            exit 0
-          fi
+        run: make -f Makefiles/Makefile_xbox360 XENON_DIR=/usr/local/xenon -j$(nproc)
 
       - name: Verify output
-        run: ls -lh *.xex 2>/dev/null || echo "No output produced"
+        run: ls -lh *.xex 2>/dev/null || (echo "❌ No .xex output found"; exit 1)
 
       - uses: actions/upload-artifact@v4
         with:

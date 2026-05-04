@@ -3,10 +3,6 @@ name: CI – Linux
 on:
   push:
     branches: [main, master, develop]
-    paths:
-      - 'src/**'
-      - 'Makefiles/Makefile_linux'
-      - '.github/workflows/ci_linux.yml'
   pull_request:
     branches: [main, master, develop]
   workflow_dispatch:

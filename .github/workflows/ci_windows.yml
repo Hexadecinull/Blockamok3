@@ -3,14 +3,6 @@ name: CI – Windows
 on:
   push:
     branches: [main, master, develop]
-    paths:
-      - 'src/**'
-      - 'Makefiles/Makefile_pc'
-      - 'Makefiles/Makefile_pc_x86'
-      - 'release-resources/resource.rc'
-      - 'release-resources/resource.h'
-      - 'ci/Directory.Build.props'
-      - '.github/workflows/ci_windows.yml'
   pull_request:
     branches: [main, master, develop]
   workflow_dispatch:

@@ -3,10 +3,6 @@ name: CI – Xbox (Original, nxdk)
 on:
   push:
     branches: [main, master, develop]
-    paths:
-      - 'src/**'
-      - 'Makefiles/Makefile_xbox'
-      - '.github/workflows/ci_xbox_original.yml'
   pull_request:
     branches: [main, master, develop]
   workflow_dispatch:

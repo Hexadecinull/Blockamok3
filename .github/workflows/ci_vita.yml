@@ -3,11 +3,6 @@ name: CI – PS Vita
 on:
   push:
     branches: [main, master, develop]
-    paths:
-      - 'src/**'
-      - 'Makefiles/make_vita.sh'
-      - 'release-resources/template_vita.xml'
-      - '.github/workflows/ci_vita.yml'
   pull_request:
     branches: [main, master, develop]
   workflow_dispatch:

@@ -3,10 +3,6 @@ name: CI – PSP
 on:
   push:
     branches: [main, master, develop]
-    paths:
-      - 'src/**'
-      - 'Makefiles/Makefile_psp'
-      - '.github/workflows/ci_psp.yml'
   pull_request:
     branches: [main, master, develop]
   workflow_dispatch:

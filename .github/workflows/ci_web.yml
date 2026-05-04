@@ -3,12 +3,6 @@ name: CI – Web (Emscripten / WASM)
 on:
   push:
     branches: [main, master, develop]
-    paths:
-      - 'src/**'
-      - 'Makefiles/Makefile_wasm'
-      - 'Makefiles/Makefile_wasm_low'
-      - 'Makefiles/shell_wasm.html'
-      - '.github/workflows/ci_web.yml'
   pull_request:
     branches: [main, master, develop]
   workflow_dispatch:
@@ -31,10 +25,14 @@ jobs:
         run: emcc --version
 
       - name: Build WASM (normal)
-        run: make -f Makefiles/Makefile_wasm -j$(nproc)
+        # -Wno-limited-stack is a common Emscripten-specific warning that fires when
+        # ASYNCIFY is enabled and functions with large stack frames are instrumented.
+        # -Wno-pthreads-mem-growth silences the memory-growth + pthreads advisory.
+        # These are informational only and do not indicate bugs in the game code.
+        run: make -f Makefiles/Makefile_wasm -j$(nproc) CFLAGS_EXTRA="-Wno-limited-stack -Wno-pthreads-mem-growth"
 
       - name: Build WASM (low-end)
-        run: make -f Makefiles/Makefile_wasm_low -j$(nproc)
+        run: make -f Makefiles/Makefile_wasm_low -j$(nproc) CFLAGS_EXTRA="-Wno-limited-stack -Wno-pthreads-mem-growth"
 
       - name: Verify output files
         run: |
@@ -52,8 +50,6 @@ jobs:
           path: web/
           retention-days: 30
 
-  # Deploy both normal + low-end to GitHub Pages on push to main/master.
-  # Requires: repository Settings → Pages → Source → GitHub Actions.
   deploy-pages:
     name: Deploy to GitHub Pages
     needs: build

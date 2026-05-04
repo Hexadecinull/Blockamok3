@@ -3,11 +3,6 @@ name: CI – Wii U
 on:
   push:
     branches: [main, master, develop]
-    paths:
-      - 'src/**'
-      - 'CMakeLists.txt'
-      - 'Makefiles/make_wii_u.sh'
-      - '.github/workflows/ci_wiiu.yml'
   pull_request:
     branches: [main, master, develop]
   workflow_dispatch:

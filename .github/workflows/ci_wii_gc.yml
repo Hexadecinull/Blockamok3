@@ -3,11 +3,6 @@ name: CI – Wii & GameCube
 on:
   push:
     branches: [main, master, develop]
-    paths:
-      - 'src/**'
-      - 'Makefiles/Makefile_wii'
-      - 'Makefiles/Makefile_gc'
-      - '.github/workflows/ci_wii_gc.yml'
   pull_request:
   workflow_dispatch:
     branches: [main, master, develop]

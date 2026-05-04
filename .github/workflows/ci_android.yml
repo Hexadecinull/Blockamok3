@@ -3,12 +3,6 @@ name: CI – Android
 on:
   push:
     branches: [main, master, develop]
-    paths:
-      - 'src/**'
-      - 'android/**'
-      - 'Makefiles/Android.mk'
-      - 'Makefiles/Application.mk'
-      - '.github/workflows/ci_android.yml'
   pull_request:
     branches: [main, master, develop]
   workflow_dispatch:
@@ -38,18 +32,13 @@ jobs:
             "platforms;android-36"
 
       - name: Ensure android/ project files exist
-        # If the android/ directory was not committed to the repo, generate
-        # the minimal set of files needed to build. If they already exist
-        # (committed from the release zip), this step is a fast no-op.
         run: |
           set -e
-          # ── directory tree ────────────────────────────────────────────────
           mkdir -p android/app/src/main/jni
           mkdir -p android/app/src/main/c/audio
           mkdir -p android/app/src/main/c/fonts
           mkdir -p android/app/src/main/res/values
 
-          # ── build.gradle ─────────────────────────────────────────────────
           if [ ! -f android/app/build.gradle ]; then
           cat > android/app/build.gradle << 'GRADLE'
           apply plugin: 'com.android.application'
@@ -73,7 +62,6 @@ jobs:
           GRADLE
           fi
 
-          # ── root build.gradle ─────────────────────────────────────────────
           if [ ! -f android/build.gradle ]; then
           cat > android/build.gradle << 'GRADLE'
           buildscript {
@@ -84,18 +72,16 @@ jobs:
           GRADLE
           fi
 
-          # ── settings.gradle ───────────────────────────────────────────────
           [ -f android/settings.gradle ] || echo "rootProject.name = 'BlockamokRemix'" > android/settings.gradle
           echo "include ':app'" >> android/settings.gradle
 
-          # ── gradle.properties ─────────────────────────────────────────────
           [ -f android/gradle.properties ] || cat > android/gradle.properties << 'PROPS'
           android.useAndroidX=true
           android.enableJetifier=true
           org.gradle.jvmargs=-Xmx2048m
+          android.suppressUnsupportedCompileSdk=36
           PROPS
 
-          # ── AndroidManifest.xml ───────────────────────────────────────────
           if [ ! -f android/app/src/main/AndroidManifest.xml ]; then
           cat > android/app/src/main/AndroidManifest.xml << 'MANIFEST'
           <?xml version="1.0" encoding="utf-8"?>
@@ -125,7 +111,6 @@ jobs:
           MANIFEST
           fi
 
-          # ── jni Android.mk ────────────────────────────────────────────────
           if [ ! -f android/app/src/main/jni/Android.mk ]; then
           cat > android/app/src/main/jni/Android.mk << 'MK'
           LOCAL_PATH := $(call my-dir)
@@ -145,13 +130,11 @@ jobs:
           MK
           fi
 
-          # ── jni Application.mk ────────────────────────────────────────────
           if [ ! -f android/app/src/main/jni/Application.mk ]; then
           printf 'APP_ABI    := armeabi-v7a arm64-v8a x86 x86_64\nAPP_PLATFORM := android-19\nAPP_ALLOW_MISSING_DEPS := true\n' \
             > android/app/src/main/jni/Application.mk
           fi
 
-          # ── strings.xml ───────────────────────────────────────────────────
           if [ ! -f android/app/src/main/res/values/strings.xml ]; then
           cat > android/app/src/main/res/values/strings.xml << 'XML'
           <?xml version="1.0" encoding="utf-8"?>
@@ -175,45 +158,90 @@ jobs:
         uses: actions/cache@v4
         with:
           path: android/app/src/main/jni
-          key: sdl2-android-2.30.10-v6
+          key: sdl2-android-2.30.10-v8
 
       - name: Download SDL2 Android sources
         if: steps.cache-sdl2-android.outputs.cache-hit != 'true'
         run: |
           JNI="android/app/src/main/jni"
-          mkdir -p "$JNI/SDL2" "$JNI/SDL2_mixer" "$JNI/SDL2_ttf"
+          mkdir -p "$JNI/SDL2" "$JNI/SDL2_ttf"
+
+          # SDL2 – release tarball (no submodules needed)
           curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-2.30.10/SDL2-2.30.10.tar.gz" \
             | tar -xz -C "$JNI/SDL2" --strip-components=1
-          curl -sL "https://github.com/libsdl-org/SDL_mixer/releases/download/release-2.8.0/SDL2_mixer-2.8.0.tar.gz" \
-            | tar -xz -C "$JNI/SDL2_mixer" --strip-components=1
-          # wavpack is a git submodule — NOT included in GitHub release tarballs.
-          # Download WavPack 5.4.0 source (the version SDL2_mixer 2.8.0 pins) separately.
-          if [ ! -f "$JNI/SDL2_mixer/external/wavpack/include/wavpack.h" ]; then
-            echo "Downloading WavPack source..."
-            mkdir -p "$JNI/SDL2_mixer/external/wavpack"
-            curl -sL "https://github.com/dbry/WavPack/archive/refs/tags/5.4.0.tar.gz" \
-              | tar -xz -C "$JNI/SDL2_mixer/external/wavpack" --strip-components=1
-            echo "✅ wavpack source ready"
-          else
-            echo "✅ wavpack already present"
-          fi
+
+          # SDL2_mixer – git clone with submodules.
+          # The GitHub release tarball omits git submodule content: the wavpack submodule
+          # directory ends up empty, so external/wavpack/Android.mk is never created and
+          # the NDK build fails.  Cloning with --recurse-submodules populates external/wavpack/.
+          echo "Cloning SDL2_mixer with submodules..."
+          git clone --depth=1 --branch release-2.8.0 \
+            https://github.com/libsdl-org/SDL_mixer.git "$JNI/SDL2_mixer"
+          git -C "$JNI/SDL2_mixer" submodule update --init --depth=1
+          echo "✅ SDL2_mixer cloned with submodules"
+
+          # SDL2_ttf – release tarball
           curl -sL "https://github.com/libsdl-org/SDL_ttf/releases/download/release-2.22.0/SDL2_ttf-2.22.0.tar.gz" \
             | tar -xz -C "$JNI/SDL2_ttf" --strip-components=1
 
-      - name: Ensure WavPack source present in SDL2_mixer
-        # WavPack is a git submodule — missing from GitHub release tarballs.
-        # Run unconditionally (even on cache hit) so wavpack is always present.
+      - name: Ensure wavpack Android.mk exists
+        # SDL2_mixer's Android.mk unconditionally includes external/wavpack/Android.mk.
+        # The WavPack upstream source does not ship one, so we generate it from the source
+        # files that were populated by the submodule init step above.
+        # This step runs unconditionally (handles both fresh downloads and cache hits).
         run: |
-          JNI="android/app/src/main/jni"
-          if [ ! -f "$JNI/SDL2_mixer/external/wavpack/include/wavpack.h" ]; then
-            echo "WavPack not in cache — downloading..."
-            mkdir -p "$JNI/SDL2_mixer/external/wavpack"
-            curl -sL "https://github.com/dbry/WavPack/archive/refs/tags/5.4.0.tar.gz" \
-              | tar -xz -C "$JNI/SDL2_mixer/external/wavpack" --strip-components=1
-            echo "✅ WavPack ready"
-          else
-            echo "✅ WavPack already present"
+          WP_DIR="android/app/src/main/jni/SDL2_mixer/external/wavpack"
+          MK="$WP_DIR/Android.mk"
+
+          if [ -f "$MK" ]; then
+            echo "✅ wavpack/Android.mk already present"
+            exit 0
           fi
+
+          echo "wavpack/Android.mk missing – generating..."
+
+          # If the submodule wasn't populated (e.g. stale cache), fetch WavPack now
+          if [ ! -d "$WP_DIR/src" ]; then
+            echo "WavPack source not found – cloning..."
+            rm -rf "$WP_DIR"
+            mkdir -p "$WP_DIR"
+            git clone --depth=1 --branch 5.4.0 \
+              https://github.com/dbry/WavPack.git "$WP_DIR"
+          fi
+
+          python3 - "$WP_DIR" "$MK" << 'PYEOF'
+import sys, os, glob
+
+wp_dir, mk_path = sys.argv[1], sys.argv[2]
+
+# CLI-only files that must NOT be included in the library build
+skip = {'wavpack.c', 'wvunpack.c', 'wvgain.c', 'wvselfcheck.c', 'wvtest.c'}
+
+src_files = sorted(
+    'src/' + os.path.basename(f)
+    for f in glob.glob(os.path.join(wp_dir, 'src', '*.c'))
+    if os.path.basename(f) not in skip
+)
+
+if not src_files:
+    print("ERROR: no .c files found in", os.path.join(wp_dir, 'src'))
+    sys.exit(1)
+
+with open(mk_path, 'w') as f:
+    f.write('LOCAL_PATH := $(call my-dir)\n')
+    f.write('include $(CLEAR_VARS)\n')
+    f.write('LOCAL_MODULE := wavpack\n')
+    f.write('LOCAL_EXPORT_C_INCLUDES := $(LOCAL_PATH)/include\n')
+    f.write('LOCAL_C_INCLUDES := $(LOCAL_PATH)/include $(LOCAL_PATH)/src\n')
+    f.write('LOCAL_CFLAGS := -DNO_MAIN -DHAVE_FCNTL_H\n')
+    f.write('LOCAL_SRC_FILES := \\\n')
+    for i, s in enumerate(src_files):
+        sep = ' \\' if i < len(src_files) - 1 else ''
+        f.write(f'    {s}{sep}\n')
+    f.write('include $(BUILD_STATIC_LIBRARY)\n')
+
+print('✅ wavpack Android.mk generated with', len(src_files), 'source files')
+PYEOF
 
       - name: Copy game source into jni tree
         run: |

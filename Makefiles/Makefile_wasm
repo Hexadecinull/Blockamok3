@@ -28,7 +28,8 @@ CFLAGS := \
     --use-port=sdl2_mixer \
     --use-port=sdl2_ttf \
     -sASYNCIFY=1 \
-    -sFULL_ES2=1
+    -sFULL_ES2=1 \
+    $(CFLAGS_EXTRA)
 
 LDFLAGS := \
     --use-port=sdl2 \

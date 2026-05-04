@@ -3,10 +3,6 @@ name: CI – Nintendo Switch
 on:
   push:
     branches: [main, master, develop]
-    paths:
-      - 'src/**'
-      - 'Makefiles/Makefile_switch'
-      - '.github/workflows/ci_switch.yml'
   pull_request:
     branches: [main, master, develop]
   workflow_dispatch:

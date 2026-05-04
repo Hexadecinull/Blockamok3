@@ -3,10 +3,6 @@ name: CI – Compile-time Sanity Checks
 on:
   push:
     branches: [main, master, develop]
-    paths:
-      - 'src/**'
-      - 'ci/stubs/**'
-      - '.github/workflows/ci_compile_check.yml'
   pull_request:
     branches: [main, master, develop]
   workflow_dispatch:

@@ -7,15 +7,15 @@ on:
     branches: [main, master, develop]
   workflow_dispatch:
 
-# Uses the official ps3dev/ps3dev Docker Hub image which ships a complete
-# PS3 toolchain (ppu-gcc, spu-gcc, PSL1GHT, ps3libraries).
-# The image that was previously referenced (ps3dev/buildenv) does not exist.
+# Uses the official ps3dev Docker image from GitHub Container Registry.
+# ghcr.io/ps3dev/ps3dev ships ppu-gcc, spu-gcc, PSL1GHT, and ps3libraries.
+# (The Docker Hub images ps3dev/buildenv and ps3dev/ps3dev do not exist.)
 jobs:
   build:
     name: Build PS3 (PSL1GHT)
     runs-on: ubuntu-24.04
     container:
-      image: ps3dev/ps3dev:latest
+      image: ghcr.io/ps3dev/ps3dev:latest
 
     steps:
       - uses: actions/checkout@v4
@@ -23,8 +23,8 @@ jobs:
       - name: Verify toolchain
         run: |
           ppu-gcc --version && echo "ppu-gcc found" || (echo "ppu-gcc not found"; exit 1)
-          echo "PS3DEV=$PS3DEV"
-          echo "PSL1GHT=$PSL1GHT"
+          echo "PS3DEV=${PS3DEV:-not set}"
+          echo "PSL1GHT=${PSL1GHT:-not set}"
 
       - name: Build Blockamok for PS3
         run: |

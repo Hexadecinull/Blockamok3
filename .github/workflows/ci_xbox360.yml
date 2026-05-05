@@ -23,50 +23,93 @@ jobs:
             bison flex texinfo libgmp-dev libmpfr-dev libmpc-dev \
             libncurses-dev python3 zlib1g-dev
 
-      - name: Cache libxenon toolchain
+      - name: Cache xenon cross-compiler + libxenon SDK
         id: cache-xenon
         uses: actions/cache@v4
         with:
           path: /usr/local/xenon
-          key: libxenon-toolchain-v9-${{ runner.os }}
+          key: xenon-toolchain-binutils241-gcc1230-sdk-v5-${{ runner.os }}
 
-      - name: Build libxenon toolchain from source
-        # The libxenon root Makefile does NOT build the cross-compiler.
-        # The actual build scripts live in the toolchain/ subdirectory.
-        # Sequence:
-        #   1. build-xenon-binutils.sh  — builds binutils for powerpc64-xenon-elf
-        #   2. build-xenon-gcc.sh       — builds gcc for powerpc64-xenon-elf
-        #   3. build-xenon-newlib.sh    — builds newlib (libc) for the target
-        #   4. make install (repo root) — builds libxenon SDK headers + libs
+      - name: Build xenon cross-compiler and libxenon SDK
+        # libxenon provides only the SDK headers/libs – it does NOT build the
+        # cross-compiler.  The compiler (powerpc64-xenon-elf-gcc) must be built
+        # from binutils + gcc sources, then libxenon is built with that compiler.
+        #
+        # Steps:
+        #   1. binutils-2.41  → powerpc64-xenon-elf-{as,ld,...}
+        #   2. gcc-12.3.0 (C only, --without-headers)  → powerpc64-xenon-elf-gcc
+        #   3. libxenon make install  → headers, libs, app.lds at $PREFIX
         if: steps.cache-xenon.outputs.cache-hit != 'true'
         timeout-minutes: 90
         run: |
+          set -euo pipefail
           PREFIX=/usr/local/xenon
           sudo mkdir -p "$PREFIX" && sudo chown -R "$USER":"$USER" "$PREFIX"
-          export DEVKITXENON="$PREFIX"
           export PATH="$PREFIX/bin:$PATH"
+          export DEVKITXENON="$PREFIX"
 
-          git clone --depth=1 https://github.com/Free60Project/libxenon.git /tmp/libxenon
-          cd /tmp/libxenon/toolchain
+          BINUTILS_VER=2.41
+          GCC_VER=12.3.0
+          JOBS=$(nproc)
+          WORK=/tmp/xenon-build
+          mkdir -p "$WORK" && cd "$WORK"
 
-          echo "=== Building xenon binutils ==="
-          bash build-xenon-binutils.sh
+          # ── 1. binutils ──────────────────────────────────────────────────
+          echo "=== Downloading binutils $BINUTILS_VER ==="
+          curl -sL "https://ftp.gnu.org/gnu/binutils/binutils-${BINUTILS_VER}.tar.xz" \
+            | tar -xJ
+          mkdir build-binutils && cd build-binutils
+          ../binutils-${BINUTILS_VER}/configure \
+            --target=powerpc64-xenon-elf \
+            --prefix="$PREFIX" \
+            --disable-nls \
+            --disable-werror \
+            --enable-lto \
+            2>&1 | tail -5
+          make -j"$JOBS" 2>&1 | tail -10
+          make install 2>&1 | tail -5
+          echo "binutils installed"
+          cd "$WORK"
 
-          echo "=== Building xenon gcc ==="
-          bash build-xenon-gcc.sh
+          # ── 2. gcc (bootstrap – C only, no libc yet) ─────────────────────
+          echo "=== Downloading gcc $GCC_VER ==="
+          curl -sL "https://ftp.gnu.org/gnu/gcc/gcc-${GCC_VER}/gcc-${GCC_VER}.tar.xz" \
+            | tar -xJ
+          cd gcc-${GCC_VER}
+          ./contrib/download_prerequisites 2>&1 | tail -10
+          cd "$WORK"
+          mkdir build-gcc && cd build-gcc
+          ../gcc-${GCC_VER}/configure \
+            --target=powerpc64-xenon-elf \
+            --prefix="$PREFIX" \
+            --enable-languages=c \
+            --without-headers \
+            --disable-nls \
+            --disable-multilib \
+            --disable-threads \
+            --disable-shared \
+            --disable-decimal-float \
+            --disable-libssp \
+            --disable-libgomp \
+            --disable-libquadmath \
+            --with-cpu=cell \
+            2>&1 | tail -5
+          make -j"$JOBS" all-gcc 2>&1 | tail -10
+          make install-gcc 2>&1 | tail -5
+          echo "gcc (bootstrap) installed"
+          cd "$WORK"
 
-          # newlib provides the C standard library for the target
-          if [ -f build-xenon-newlib.sh ]; then
-            echo "=== Building xenon newlib ==="
-            bash build-xenon-newlib.sh
-          fi
-
-          echo "=== Building libxenon SDK ==="
-          cd /tmp/libxenon
-          make install DEVKITXENON="$PREFIX"
+          # ── 3. libxenon SDK (headers + libs + app.lds) ───────────────────
+          echo "=== Cloning libxenon ==="
+          git clone --depth=1 https://github.com/Free60Project/libxenon.git libxenon-sdk
+          cd libxenon-sdk
+          # 'make install' builds the xenon SDK libraries and installs them.
+          # DEVKITXENON is the install prefix expected by libxenon's Makefile.
+          make install DEVKITXENON="$PREFIX" 2>&1 | tail -20
+          echo "libxenon SDK installed"
 
           ls "$PREFIX/bin/powerpc64-xenon-elf-gcc" \
-            && echo "xenon gcc built successfully" \
+            && echo "xenon toolchain ready" \
             || (echo "xenon gcc not found after build"; exit 1)
 
       - name: Add toolchain to PATH

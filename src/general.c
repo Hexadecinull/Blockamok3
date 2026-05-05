@@ -1,5 +1,10 @@
 #include <stdio.h>
 
+/* SDL.h is needed on Vita for SDL_setenv; include path is set by CMakeLists */
+#if defined(VITA)
+#include <SDL.h>
+#endif
+
 #include "./general.h"
 
 void systemSpecificOpen() {

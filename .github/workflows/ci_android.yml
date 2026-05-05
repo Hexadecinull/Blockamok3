@@ -31,130 +31,16 @@ jobs:
             "build-tools;34.0.0" \
             "platforms;android-36"
 
-      - name: Ensure android/ project files exist
-        run: |
-          set -e
-          mkdir -p android/app/src/main/jni
-          mkdir -p android/app/src/main/c/audio
-          mkdir -p android/app/src/main/c/fonts
-          mkdir -p android/app/src/main/res/values
-
-          if [ ! -f android/app/build.gradle ]; then
-            cat > android/app/build.gradle << 'GRADLE'
-apply plugin: 'com.android.application'
-android {
-    namespace 'com.mode8fx.blockamokremix'
-    compileSdk 36
-    defaultConfig {
-        applicationId "com.mode8fx.blockamokremix"
-        minSdk 19
-        targetSdk 36
-        versionCode 1
-        versionName "1.0"
-        ndk { abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64' }
-        externalNativeBuild {
-            ndkBuild { arguments "APP_PLATFORM=android-19", "NDK_MODULE_PATH=src/main/jni" }
-        }
-    }
-    externalNativeBuild { ndkBuild { path "src/main/jni/Android.mk" } }
-    buildTypes { release { minifyEnabled false } }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
-    }
-}
-dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }
-GRADLE
-          fi
-
-          if [ ! -f android/build.gradle ]; then
-            cat > android/build.gradle << 'GRADLE'
-buildscript {
-    repositories { google(); mavenCentral() }
-    dependencies { classpath 'com.android.tools.build:gradle:8.3.2' }
-}
-allprojects { repositories { google(); mavenCentral() } }
-GRADLE
-          fi
-
-          if [ ! -f android/settings.gradle ]; then
-            printf 'rootProject.name = "BlockamokRemix"\ninclude ":app"\n' > android/settings.gradle
-          fi
-
-          if [ ! -f android/gradle.properties ]; then
-            cat > android/gradle.properties << 'PROPS'
-android.useAndroidX=true
-android.enableJetifier=true
-org.gradle.jvmargs=-Xmx2048m
-android.suppressUnsupportedCompileSdk=36
-PROPS
-          fi
-
-          if [ ! -f android/app/src/main/AndroidManifest.xml ]; then
-            cat > android/app/src/main/AndroidManifest.xml << 'MANIFEST'
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  <uses-feature android:glEsVersion="0x00020000" android:required="true" />
-  <uses-permission android:name="android.permission.VIBRATE" />
-  <application
-      android:allowBackup="false"
-      android:label="@string/app_name"
-      android:hardwareAccelerated="true">
-    <activity
-        android:name="org.libsdl.app.SDLActivity"
-        android:label="@string/app_name"
-        android:exported="true"
-        android:screenOrientation="landscape"
-        android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
-        android:launchMode="singleTop">
-      <intent-filter>
-        <action android:name="android.intent.action.MAIN" />
-        <category android:name="android.intent.category.LAUNCHER" />
-        <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-      </intent-filter>
-      <meta-data android:name="android.app.lib_name" android:value="main" />
-    </activity>
-  </application>
-</manifest>
-MANIFEST
-          fi
-
-          if [ ! -f android/app/src/main/jni/Android.mk ]; then
-            cat > android/app/src/main/jni/Android.mk << 'MK'
-LOCAL_PATH := $(call my-dir)
-include $(CLEAR_VARS)
-LOCAL_MODULE := main
-LOCAL_SRC_FILES := \
-  $(wildcard $(LOCAL_PATH)/../c/*.c) \
-  $(wildcard $(LOCAL_PATH)/../c/audio/*.c) \
-  $(wildcard $(LOCAL_PATH)/../c/fonts/*.c)
-LOCAL_CFLAGS += -DANDROID -DNO_QUIT -DFORCE_DRAW_BG -DFORCE_DRAW_OVERLAY -O2
-LOCAL_LDLIBS    := -lGLESv1_CM -lGLESv2 -llog
-LOCAL_SHARED_LIBRARIES := SDL2 SDL2_mixer SDL2_ttf
-include $(BUILD_SHARED_LIBRARY)
-$(call import-module,SDL2)
-$(call import-module,SDL2_mixer)
-$(call import-module,SDL2_ttf)
-MK
-          fi
-
-          if [ ! -f android/app/src/main/jni/Application.mk ]; then
-            printf 'APP_ABI    := armeabi-v7a arm64-v8a x86 x86_64\nAPP_PLATFORM := android-19\nAPP_ALLOW_MISSING_DEPS := true\n' \
-              > android/app/src/main/jni/Application.mk
-          fi
-
-          if [ ! -f android/app/src/main/res/values/strings.xml ]; then
-            cat > android/app/src/main/res/values/strings.xml << 'XML'
-<?xml version="1.0" encoding="utf-8"?>
-<resources><string name="app_name">Blockamok Remix</string></resources>
-XML
-          fi
-          echo "android/ project structure ready"
+      - name: Scaffold Android project files
+        # All file generation lives in scripts/setup_android_project.sh.
+        # This avoids embedding heredocs in YAML (column-0 content breaks
+        # the block-scalar parser used by GitHub Actions).
+        run: bash scripts/setup_android_project.sh
 
       - name: Set up Gradle wrapper
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Generate real Gradle wrapper
+      - name: Generate Gradle wrapper
         run: |
           cd android
           gradle wrapper --gradle-version 8.7 --distribution-type bin
@@ -165,7 +51,7 @@ XML
         uses: actions/cache@v4
         with:
           path: android/app/src/main/jni
-          key: sdl2-android-2.30.10-mixer-2.8.0-v9
+          key: sdl2-android-2.30.10-mixer-2.8.0-v10
 
       - name: Download SDL2 Android sources
         if: steps.cache-sdl2-android.outputs.cache-hit != 'true'
@@ -173,17 +59,17 @@ XML
           JNI="android/app/src/main/jni"
           mkdir -p "$JNI/SDL2" "$JNI/SDL2_ttf"
 
-          # SDL2 – release tarball
+          # SDL2 – release tarball (no submodules needed)
           curl -sL "https://github.com/libsdl-org/SDL/releases/download/release-2.30.10/SDL2-2.30.10.tar.gz" \
             | tar -xz -C "$JNI/SDL2" --strip-components=1
 
-          # SDL2_mixer – must be git-cloned with submodules.
-          # The release tarball leaves external/wavpack/ empty (no Android.mk).
+          # SDL2_mixer – MUST be git-cloned with --recurse-submodules.
+          # The GitHub release tarball leaves external/wavpack/ empty, so the
+          # NDK build fails with "No such file or directory: external/wavpack/Android.mk".
           echo "Cloning SDL2_mixer with submodules..."
           git clone --depth=1 --branch release-2.8.0 \
             https://github.com/libsdl-org/SDL_mixer.git "$JNI/SDL2_mixer"
           git -C "$JNI/SDL2_mixer" submodule update --init --depth=1
-          echo "SDL2_mixer submodules ready"
 
           # SDL2_ttf – release tarball
           curl -sL "https://github.com/libsdl-org/SDL_ttf/releases/download/release-2.22.0/SDL2_ttf-2.22.0.tar.gz" \
@@ -191,8 +77,7 @@ XML
 
       - name: Ensure wavpack Android.mk exists
         # SDL2_mixer's Android.mk unconditionally includes external/wavpack/Android.mk.
-        # WavPack upstream does not ship one, so we generate it here in pure bash
-        # (avoids embedding a Python heredoc in YAML, which trips the merge-key parser).
+        # WavPack upstream does not ship one – generate it here in pure bash.
         run: |
           WP_DIR="android/app/src/main/jni/SDL2_mixer/external/wavpack"
           MK="$WP_DIR/Android.mk"
@@ -204,7 +89,6 @@ XML
 
           echo "wavpack/Android.mk missing – generating..."
 
-          # If submodule checkout didn't populate the directory, clone WavPack directly
           if [ ! -d "$WP_DIR/src" ]; then
             echo "WavPack source not found – cloning..."
             rm -rf "$WP_DIR"
@@ -212,7 +96,6 @@ XML
               https://github.com/dbry/WavPack.git "$WP_DIR"
           fi
 
-          # Build the source file list (exclude CLI-only executables)
           SKIP="wavpack.c wvunpack.c wvgain.c wvselfcheck.c wvtest.c"
           SRC_LIST=""
           for f in $(ls "$WP_DIR/src/"*.c 2>/dev/null | sort); do
@@ -224,11 +107,11 @@ XML
             [ $is_skip -eq 0 ] && SRC_LIST="$SRC_LIST src/$fname"
           done
 
-          if [ -z "$SRC_LIST" ]; then
-            echo "ERROR: no .c files found in $WP_DIR/src" && exit 1
-          fi
+          [ -z "$SRC_LIST" ] && echo "ERROR: no .c files in $WP_DIR/src" && exit 1
 
-          # Write Android.mk
+          files_arr=($SRC_LIST)
+          total=${#files_arr[@]}
+
           {
             echo 'LOCAL_PATH := $(call my-dir)'
             echo 'include $(CLEAR_VARS)'
@@ -236,28 +119,20 @@ XML
             echo 'LOCAL_EXPORT_C_INCLUDES := $(LOCAL_PATH)/include'
             echo 'LOCAL_C_INCLUDES := $(LOCAL_PATH)/include $(LOCAL_PATH)/src'
             echo 'LOCAL_CFLAGS := -DNO_MAIN -DHAVE_FCNTL_H'
-            # Emit LOCAL_SRC_FILES with continuation backslashes on all but the last line
-            files_arr=($SRC_LIST)
-            total=${#files_arr[@]}
             echo -n 'LOCAL_SRC_FILES :='
             for i in "${!files_arr[@]}"; do
-              if [ $i -lt $((total - 1)) ]; then
-                printf ' \\\n    %s' "${files_arr[$i]}"
-              else
-                printf ' \\\n    %s\n' "${files_arr[$i]}"
-              fi
+              printf ' \\\n    %s' "${files_arr[$i]}"
             done
+            printf '\n'
             echo 'include $(BUILD_STATIC_LIBRARY)'
           } > "$MK"
 
-          echo "wavpack Android.mk generated with $total source files"
-          cat "$MK"
+          echo "Generated wavpack Android.mk with $total source files"
 
       - name: Copy game source into jni tree
         run: |
           cp src/*.c   android/app/src/main/c/       2>/dev/null || true
           cp src/*.h   android/app/src/main/c/       2>/dev/null || true
-          mkdir -p android/app/src/main/c/audio android/app/src/main/c/fonts
           cp src/audio/*.c android/app/src/main/c/audio/ 2>/dev/null || true
           cp src/audio/*.h android/app/src/main/c/audio/ 2>/dev/null || true
           cp src/fonts/*.c android/app/src/main/c/fonts/ 2>/dev/null || true
@@ -282,50 +157,20 @@ XML
     steps:
       - uses: actions/checkout@v4
 
-      - name: Scaffold android/ directory for lint
-        run: |
-          mkdir -p android/app/src/main/jni android/app/src/main/res
-          if [ ! -f android/app/src/main/AndroidManifest.xml ]; then
-            cat > android/app/src/main/AndroidManifest.xml << 'MANIFEST'
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  <application android:label="Blockamok Remix"
-               android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
-    <activity android:name="org.libsdl.app.SDLActivity"
-              android:configChanges="orientation|screenSize|keyboardHidden"
-              android:screenOrientation="landscape"
-              android:exported="true">
-      <intent-filter>
-        <action android:name="android.intent.action.MAIN"/>
-        <category android:name="android.intent.category.LAUNCHER"/>
-      </intent-filter>
-    </activity>
-  </application>
-</manifest>
-MANIFEST
-          fi
-          if [ ! -f android/app/build.gradle ]; then
-            cat > android/app/build.gradle << 'GRADLE'
-plugins { id 'com.android.application' }
-android {
-    namespace 'com.mode8fx.blockamokremix'
-    compileSdk 36
-    defaultConfig { minSdk 19; targetSdk 36 }
-}
-GRADLE
-          fi
+      - name: Scaffold Android project for lint
+        run: bash scripts/setup_android_project.sh
 
       - name: Check AndroidManifest.xml exists
-        run: test -f android/app/src/main/AndroidManifest.xml && echo "AndroidManifest.xml found" || (echo "AndroidManifest.xml missing"; exit 1)
+        run: test -f android/app/src/main/AndroidManifest.xml && echo "ok" || (echo "AndroidManifest.xml missing"; exit 1)
 
       - name: Check screenOrientation is landscape
-        run: grep -q 'screenOrientation="landscape"' android/app/src/main/AndroidManifest.xml && echo "landscape orientation ok" || (echo "screenOrientation is not landscape"; exit 1)
+        run: grep -q 'screenOrientation="landscape"' android/app/src/main/AndroidManifest.xml && echo "ok" || (echo "screenOrientation not landscape"; exit 1)
 
       - name: Check targetSdk is 36
-        run: grep -q 'targetSdk 36' android/app/build.gradle && echo "targetSdk 36 ok" || (echo "targetSdk check failed"; exit 1)
+        run: grep -q 'targetSdk 36' android/app/build.gradle && echo "ok" || (echo "targetSdk check failed"; exit 1)
 
       - name: Check minSdk is 19
-        run: grep -q 'minSdk 19' android/app/build.gradle && echo "minSdk 19 ok" || (echo "minSdk check failed"; exit 1)
+        run: grep -q 'minSdk 19' android/app/build.gradle && echo "ok" || (echo "minSdk check failed"; exit 1)
 
       - name: Check compileSdk is 36
-        run: grep -q 'compileSdk 36' android/app/build.gradle && echo "compileSdk 36 ok" || (echo "compileSdk check failed"; exit 1)
+        run: grep -q 'compileSdk 36' android/app/build.gradle && echo "ok" || (echo "compileSdk check failed"; exit 1)
